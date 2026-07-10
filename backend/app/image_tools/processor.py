@@ -141,7 +141,31 @@ def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
 
     component = component.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.MinFilter(5))
     component = _fill_mask_holes(component).filter(ImageFilter.GaussianBlur(0.8))
-    return component.resize(image.size, Image.Resampling.LANCZOS)
+    central_mask = component.resize(image.size, Image.Resampling.LANCZOS)
+
+    # Saturation-only segmentation drops white product parts on checkerboard
+    # inputs. The corner-color mask recovers those parts without restoring the
+    # low-contrast checker tiles themselves.
+    color_mask = _corner_color_subject_mask(image)
+    color_mask = color_mask.point(lambda value: 255 if value >= 20 else 0)
+    bounds = central_mask.getbbox()
+    if bounds:
+        envelope = Image.new("L", image.size, 0)
+        envelope_draw = ImageDraw.Draw(envelope)
+        pad_x = round(image.width * 0.28)
+        pad_y = round(image.height * 0.55)
+        envelope_draw.rectangle(
+            (
+                max(0, bounds[0] - pad_x),
+                max(0, bounds[1] - pad_y),
+                min(image.width, bounds[2] + pad_x),
+                min(image.height, bounds[3] + pad_y),
+            ),
+            fill=255,
+        )
+        color_mask = ImageChops.multiply(color_mask, envelope)
+    combined = ImageChops.lighter(central_mask, color_mask)
+    return combined.filter(ImageFilter.GaussianBlur(0.8))
 
 
 def _corner_color_subject_mask(image: Image.Image) -> Image.Image:

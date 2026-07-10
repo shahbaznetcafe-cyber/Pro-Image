@@ -79,6 +79,35 @@ class ProcessorTests(unittest.TestCase):
         self.assertEqual(output.getpixel((0, 0)), (255, 255, 255))
         self.assertEqual(output.getpixel((1999, 1999)), (255, 255, 255))
 
+    def test_checkerboard_cleanup_keeps_white_parts_of_product(self) -> None:
+        source = Image.new("RGB", (900, 700), "white")
+        draw = ImageDraw.Draw(source)
+        tile = 20
+        for y in range(0, source.height, tile):
+            for x in range(0, source.width, tile):
+                color = (222, 222, 222) if (x // tile + y // tile) % 2 else (242, 242, 242)
+                draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=color)
+        draw.ellipse((330, 70, 570, 300), fill=(96, 150, 42))
+        draw.rectangle((390, 245, 510, 610), fill=(250, 250, 248))
+        draw.ellipse((365, 520, 440, 650), fill=(250, 250, 248))
+        draw.ellipse((460, 520, 535, 650), fill=(250, 250, 248))
+        draw.ellipse((280, 325, 405, 390), fill=(250, 250, 248))
+        draw.ellipse((495, 325, 620, 390), fill=(250, 250, 248))
+
+        source_buffer = BytesIO()
+        source.save(source_buffer, "PNG")
+        output_bytes, _ = process_image(
+            source_buffer.getvalue(),
+            PRESETS["transparent_product"],
+            ProcessingOptions(cleanup_background=True, smart_center=True),
+        )
+
+        output = Image.open(BytesIO(output_bytes)).convert("RGBA")
+        bounds = output.getchannel("A").getbbox()
+        self.assertIsNotNone(bounds)
+        assert bounds is not None
+        self.assertGreater(bounds[3] - bounds[1], 1100)
+
 
 if __name__ == "__main__":
     unittest.main()
