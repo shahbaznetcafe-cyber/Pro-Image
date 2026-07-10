@@ -108,6 +108,29 @@ class ProcessorTests(unittest.TestCase):
         assert bounds is not None
         self.assertGreater(bounds[3] - bounds[1], 1100)
 
+    def test_dark_checkerboard_is_not_baked_into_marketplace_output(self) -> None:
+        source = Image.new("RGB", (900, 700), "white")
+        draw = ImageDraw.Draw(source)
+        tile = 20
+        for y in range(0, source.height, tile):
+            for x in range(0, source.width, tile):
+                color = (58, 58, 58) if (x // tile + y // tile) % 2 else (92, 92, 92)
+                draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=color)
+        draw.ellipse((360, 90, 540, 560), fill=(100, 20, 110))
+        draw.ellipse((385, 45, 515, 180), fill=(100, 150, 40))
+
+        source_buffer = BytesIO()
+        source.save(source_buffer, "PNG")
+        output_bytes, _ = process_image(
+            source_buffer.getvalue(),
+            PRESETS["amazon_main"],
+            ProcessingOptions(cleanup_background=True, smart_center=True),
+        )
+
+        output = Image.open(BytesIO(output_bytes)).convert("RGB")
+        self.assertEqual(output.getpixel((250, 250)), (255, 255, 255))
+        self.assertEqual(output.getpixel((1750, 250)), (255, 255, 255))
+
 
 if __name__ == "__main__":
     unittest.main()

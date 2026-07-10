@@ -144,10 +144,20 @@ def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
     central_mask = component.resize(image.size, Image.Resampling.LANCZOS)
 
     # Saturation-only segmentation drops white product parts on checkerboard
-    # inputs. The corner-color mask recovers those parts without restoring the
-    # low-contrast checker tiles themselves.
-    color_mask = _corner_color_subject_mask(image)
-    color_mask = color_mask.point(lambda value: 255 if value >= 20 else 0)
+    # inputs. Recover neutral product pixels with a background-aware mask. Dark
+    # checkerboards need a brightness mask because their two tiles differ too
+    # much from the average corner color to use a global color distance.
+    background = _estimate_background(image)
+    background_luminance = sum(background) / 3
+    if background_luminance < 160:
+        threshold = min(245, round(background_luminance + 55))
+        recovery_mask = image.convert("L").point(
+            lambda value: 255 if value >= threshold else 0
+        )
+    else:
+        recovery_mask = _corner_color_subject_mask(image).point(
+            lambda value: 255 if value >= 20 else 0
+        )
     bounds = central_mask.getbbox()
     if bounds:
         envelope = Image.new("L", image.size, 0)
@@ -163,8 +173,8 @@ def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
             ),
             fill=255,
         )
-        color_mask = ImageChops.multiply(color_mask, envelope)
-    combined = ImageChops.lighter(central_mask, color_mask)
+        recovery_mask = ImageChops.multiply(recovery_mask, envelope)
+    combined = ImageChops.lighter(central_mask, recovery_mask)
     return combined.filter(ImageFilter.GaussianBlur(0.8))
 
 
