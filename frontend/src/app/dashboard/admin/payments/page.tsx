@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { AdminRefreshButton } from "@/components/admin-refresh-button";
 import { PaymentReviewActions } from "@/components/payment-review-actions";
 import { createClient } from "@/lib/supabase/server";
 
@@ -62,9 +63,12 @@ export default async function AdminPaymentsPage() {
           </p>
           <h2 className="mt-2 text-2xl font-semibold">Payment approvals</h2>
         </div>
-        <span className="rounded-full bg-[#edf3eb] px-3 py-2 text-sm font-semibold text-[#314632]">
-          {requests?.length ?? 0} pending
-        </span>
+        <div className="flex items-center gap-2">
+          <AdminRefreshButton />
+          <span className="rounded-full bg-[#edf3eb] px-3 py-2 text-sm font-semibold text-[#314632]">
+            {requests?.length ?? 0} pending
+          </span>
+        </div>
       </div>
 
       <div className="mt-5 grid gap-4 xl:grid-cols-2">

@@ -5,7 +5,13 @@ import { FormEvent, useState } from "react";
 import { PLANS, type PlanId } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/client";
 
-export function ManualPaymentForm({ userId }: { userId: string }) {
+export function ManualPaymentForm({
+  userId,
+  disabled = false,
+}: {
+  userId: string;
+  disabled?: boolean;
+}) {
   const [plan, setPlan] = useState<PlanId>("pro");
   const [method, setMethod] = useState("JazzCash");
   const [transactionRef, setTransactionRef] = useState("");
@@ -16,6 +22,7 @@ export function ManualPaymentForm({ userId }: { userId: string }) {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (disabled) return;
     setStatus("working");
     setMessage("Submitting payment request...");
 
@@ -79,9 +86,16 @@ export function ManualPaymentForm({ userId }: { userId: string }) {
         />
       </label>
 
-      <button className="rounded-md bg-[#1f4f2a] px-4 py-3 text-sm font-semibold text-white">
+      <button disabled={disabled || status === "working"} className="rounded-md bg-[#1f4f2a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#91a392]">
         {status === "working" ? "Submitting..." : "Submit activation request"}
       </button>
+
+      {disabled ? (
+        <p className="rounded-md bg-[#fff4cc] px-3 py-2 text-sm leading-6 text-[#725d12]">
+          A payment request is already pending. Wait for admin review before
+          submitting another request.
+        </p>
+      ) : null}
 
       {message ? (
         <div

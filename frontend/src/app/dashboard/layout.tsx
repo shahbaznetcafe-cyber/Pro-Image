@@ -55,12 +55,18 @@ export default async function DashboardLayout({
     .select("is_admin")
     .eq("id", user.id)
     .maybeSingle<{ is_admin: boolean }>();
-  const navItems = profile?.is_admin
-    ? [
-        ...BASE_NAV_ITEMS,
-        { href: "/dashboard/admin/payments", label: "Payment approvals" },
-      ]
-    : BASE_NAV_ITEMS;
+  let navItems = BASE_NAV_ITEMS;
+  if (profile?.is_admin) {
+    const { count } = await supabase!
+      .from("seller_payment_requests")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending");
+    const pendingLabel = count ? `Payment approvals (${count})` : "Payment approvals";
+    navItems = [
+      ...BASE_NAV_ITEMS,
+      { href: "/dashboard/admin/payments", label: pendingLabel },
+    ];
+  }
 
   return (
     <main className="min-h-screen bg-[#f6f8f5] text-[#172018]">
