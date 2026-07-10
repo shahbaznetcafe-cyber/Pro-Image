@@ -57,6 +57,28 @@ class ProcessorTests(unittest.TestCase):
 
         self.assertEqual(report["cleanup_method"], "source_alpha")
 
+    def test_checkerboard_cleanup_produces_real_white_marketplace_canvas(self) -> None:
+        source = Image.new("RGB", (900, 500), "white")
+        draw = ImageDraw.Draw(source)
+        tile = 20
+        for y in range(0, source.height, tile):
+            for x in range(0, source.width, tile):
+                color = (222, 222, 222) if (x // tile + y // tile) % 2 else (242, 242, 242)
+                draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=color)
+        draw.ellipse((340, 60, 560, 450), fill=(235, 190, 20))
+
+        source_buffer = BytesIO()
+        source.save(source_buffer, "PNG")
+        output_bytes, _ = process_image(
+            source_buffer.getvalue(),
+            PRESETS["amazon_main"],
+            ProcessingOptions(cleanup_background=True, smart_center=True),
+        )
+
+        output = Image.open(BytesIO(output_bytes)).convert("RGB")
+        self.assertEqual(output.getpixel((0, 0)), (255, 255, 255))
+        self.assertEqual(output.getpixel((1999, 1999)), (255, 255, 255))
+
 
 if __name__ == "__main__":
     unittest.main()

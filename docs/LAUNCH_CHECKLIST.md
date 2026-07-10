@@ -47,6 +47,7 @@ step.
 ## Smoke Test
 
 - Upload 1 image and download ZIP.
+- Confirm Light polish keeps color natural and edges clean.
 - Upload 3 images and download batch ZIP.
 - Run Quality Assistant.
 - Login and confirm job history metadata appears.

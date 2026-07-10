@@ -56,6 +56,7 @@ async def generate_seller_pack(
     cleanup_background: bool = Form(default=False),
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
+    polish_output: bool = Form(default=True),
     subject_fill_percent: int = Form(default=84, ge=65, le=92),
     strict_quality: bool = Form(default=False),
     authorization: str | None = Header(default=None),
@@ -91,6 +92,7 @@ async def generate_seller_pack(
             cleanup_background=cleanup_background,
             smart_center=smart_center,
             add_shadow=add_shadow,
+            polish_output=polish_output,
             subject_fill_percent=subject_fill_percent,
         ),
         strict_quality=strict_quality,
@@ -120,6 +122,7 @@ async def generate_batch_seller_pack(
     cleanup_background: bool = Form(default=False),
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
+    polish_output: bool = Form(default=True),
     subject_fill_percent: int = Form(default=84, ge=65, le=92),
     strict_quality: bool = Form(default=False),
     authorization: str | None = Header(default=None),
@@ -182,6 +185,7 @@ async def generate_batch_seller_pack(
             cleanup_background=cleanup_background,
             smart_center=smart_center,
             add_shadow=add_shadow,
+            polish_output=polish_output,
             subject_fill_percent=subject_fill_percent,
         ),
         strict_quality=strict_quality,
@@ -241,6 +245,7 @@ async def preview_seller_studio(
     cleanup_background: bool = Form(default=True),
     smart_center: bool = Form(default=True),
     add_shadow: bool = Form(default=False),
+    polish_output: bool = Form(default=True),
     subject_fill_percent: int = Form(default=84, ge=65, le=92),
 ) -> dict[str, object]:
     selected_ids = [item.strip() for item in preset_ids.split(",") if item.strip()]
@@ -253,6 +258,7 @@ async def preview_seller_studio(
         cleanup_background=cleanup_background,
         smart_center=smart_center,
         add_shadow=add_shadow,
+        polish_output=polish_output,
         subject_fill_percent=subject_fill_percent,
     )
     outputs: list[dict[str, object]] = []

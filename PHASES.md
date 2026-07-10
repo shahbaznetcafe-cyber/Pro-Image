@@ -207,6 +207,7 @@ Completed:
 - Phase 7.2 processed-output quality gate
 - Phase 8 real SaaS activation
 - Phase 8.1 owner bootstrap and production preflight foundation
+- Output polish pass: restrained enhancement toggle and checkerboard regression coverage
 
 Next active phase:
 

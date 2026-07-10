@@ -538,3 +538,11 @@ Supabase schema before owner onboarding or paid-user testing begins.
 The remaining launch action is operational: create the owner account, run the
 one-time bootstrap SQL, deploy the preview, and test payment approval with a
 separate seller account.
+
+## Output Polish Pass
+
+Seller Studio now includes a restrained Light polish option that applies subtle
+color, contrast, and sharpness enhancement while preserving transparency. The
+same option is used by preview, single-pack, and batch-pack generation. The
+checkerboard cleanup regression test confirms marketplace outputs use a real
+white canvas instead of baked checkerboard pixels.

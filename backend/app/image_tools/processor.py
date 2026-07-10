@@ -2,7 +2,7 @@ from collections import deque
 from dataclasses import asdict, dataclass
 from io import BytesIO
 
-from PIL import Image, ImageChops, ImageDraw, ImageFilter, ImageOps, ImageStat
+from PIL import Image, ImageChops, ImageDraw, ImageEnhance, ImageFilter, ImageOps, ImageStat
 
 from app.image_tools.presets import ImagePreset
 
@@ -12,6 +12,7 @@ class ProcessingOptions:
     cleanup_background: bool = False
     smart_center: bool = False
     add_shadow: bool = False
+    polish_output: bool = True
     subject_fill_percent: int = 84
 
 
@@ -208,6 +209,18 @@ def _add_shadow(canvas: Image.Image, layer: Image.Image, x: int, y: int) -> None
     canvas.alpha_composite(shadow, (x, min(canvas.height - layer.height, y + offset)))
 
 
+def _polish_layer(layer: Image.Image) -> Image.Image:
+    """Apply a restrained seller-ready finish while preserving source alpha."""
+    alpha = layer.getchannel("A")
+    rgb = layer.convert("RGB")
+    rgb = ImageEnhance.Color(rgb).enhance(1.03)
+    rgb = ImageEnhance.Contrast(rgb).enhance(1.02)
+    rgb = ImageEnhance.Sharpness(rgb).enhance(1.08)
+    polished = rgb.convert("RGBA")
+    polished.putalpha(alpha)
+    return polished
+
+
 def _fit_on_canvas(
     image: Image.Image,
     preset: ImagePreset,
@@ -225,6 +238,8 @@ def _fit_on_canvas(
     )
     if scaled_size != layer.size:
         layer = layer.resize(scaled_size, Image.Resampling.LANCZOS)
+    if options.polish_output:
+        layer = _polish_layer(layer)
 
     background = (0, 0, 0, 0) if preset.transparent else (*preset.background, 255)
     canvas = Image.new("RGBA", (preset.width, preset.height), background)

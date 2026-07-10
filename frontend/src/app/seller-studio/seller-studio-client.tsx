@@ -48,6 +48,7 @@ type PreviewResult = {
     cleanup_background: boolean;
     smart_center: boolean;
     add_shadow: boolean;
+    polish_output: boolean;
     subject_fill_percent: number;
   };
   summary: {
@@ -89,6 +90,7 @@ export default function SellerStudioClient() {
   const [cleanupBackground, setCleanupBackground] = useState(true);
   const [smartCenter, setSmartCenter] = useState(true);
   const [addShadow, setAddShadow] = useState(false);
+  const [polishOutput, setPolishOutput] = useState(true);
   const [subjectFillPercent, setSubjectFillPercent] = useState(84);
   const [previewStatus, setPreviewStatus] = useState<Status>("idle");
   const [outputPreview, setOutputPreview] = useState<PreviewResult | null>(null);
@@ -180,6 +182,7 @@ export default function SellerStudioClient() {
     formData.append("cleanup_background", String(cleanupBackground));
     formData.append("smart_center", String(smartCenter));
     formData.append("add_shadow", String(addShadow));
+    formData.append("polish_output", String(polishOutput));
     formData.append("subject_fill_percent", String(subjectFillPercent));
   }
 
@@ -363,6 +366,7 @@ export default function SellerStudioClient() {
                   <OptionToggle label="Background cleanup" detail="Plain and checkerboard" checked={cleanupBackground} onChange={updateCleanupBackground} />
                   <OptionToggle label="Smart centering" detail="Normalize product position" checked={smartCenter} onChange={updateSmartCenter} />
                   <OptionToggle label="Natural shadow" detail="White outputs only" checked={addShadow} onChange={updateShadow} />
+                  <OptionToggle label="Light polish" detail="Color, contrast, sharpness" checked={polishOutput} onChange={setPolishOutput} />
                 </div>
                 <label className="mt-5 block rounded-lg border border-[#dce4d8] p-4">
                   <span className="flex items-center justify-between gap-3 text-sm font-semibold">
