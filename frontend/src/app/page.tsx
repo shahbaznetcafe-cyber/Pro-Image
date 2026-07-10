@@ -144,6 +144,11 @@ export default function Home() {
   const [savedPresets, setSavedPresets] =
     useState<SavedPreset[]>(loadSavedPresets);
   const [selected, setSelected] = useState<string[]>(DEFAULT_SELECTED);
+  const [cleanupBackground, setCleanupBackground] = useState(true);
+  const [smartCenter, setSmartCenter] = useState(true);
+  const [polishOutput, setPolishOutput] = useState(true);
+  const [strictQuality, setStrictQuality] = useState(true);
+  const [subjectFillPercent, setSubjectFillPercent] = useState(84);
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
@@ -253,6 +258,11 @@ export default function Home() {
     files.forEach((file) => formData.append("files", file));
     formData.append("preset_ids", selected.join(","));
     formData.append("project_name", projectName);
+    formData.append("cleanup_background", String(cleanupBackground));
+    formData.append("smart_center", String(smartCenter));
+    formData.append("polish_output", String(polishOutput));
+    formData.append("subject_fill_percent", String(subjectFillPercent));
+    formData.append("strict_quality", String(strictQuality));
 
     setStatus("working");
     setMessage(`Generating ${outputCount} seller images...`);
@@ -386,6 +396,20 @@ export default function Home() {
               </p>
             </div>
 
+            <div className="rounded-md border border-[#c8d7c5] bg-[#edf7eb] px-4 py-3 text-sm leading-6 text-[#314632]">
+              {files.length === 1 ? (
+                <>
+                  One image selected. For deep cleanup, final previews, and
+                  listing copy, use <Link href="/seller-studio" className="font-semibold underline">Seller Studio</Link>.
+                </>
+              ) : (
+                <>
+                  Batch mode is for repeating the same seller-ready settings
+                  across multiple product images.
+                </>
+              )}
+            </div>
+
             <label className="block">
               <span className="text-sm font-medium">Project or client folder</span>
               <input
@@ -428,6 +452,38 @@ export default function Home() {
               <Metric label="Images" value={String(files.length)} />
               <Metric label="Outputs" value={String(outputCount)} />
             </div>
+
+            <section className="rounded-md border border-[#dce4d8] bg-[#fbfcfa] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-sm font-semibold">Processing quality</h3>
+                  <p className="mt-1 text-xs leading-5 text-[#637063]">
+                    Applied consistently to every image in this ZIP.
+                  </p>
+                </div>
+                <span className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-[#526050]">
+                  {subjectFillPercent}% fill
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <BatchToggle label="Background cleanup" checked={cleanupBackground} onChange={setCleanupBackground} />
+                <BatchToggle label="Smart centering" checked={smartCenter} onChange={setSmartCenter} />
+                <BatchToggle label="Light polish" checked={polishOutput} onChange={setPolishOutput} />
+                <BatchToggle label="Strict quality gate" checked={strictQuality} onChange={setStrictQuality} />
+              </div>
+              <label className="mt-4 block text-xs font-semibold text-[#314632]">
+                Product fill target: {subjectFillPercent}%
+                <input
+                  type="range"
+                  min="65"
+                  max="92"
+                  value={subjectFillPercent}
+                  disabled={!smartCenter}
+                  onChange={(event) => setSubjectFillPercent(Number(event.target.value))}
+                  className="mt-2 w-full accent-[#1f4f2a] disabled:opacity-50"
+                />
+              </label>
+            </section>
 
             <button
               type="button"
@@ -753,6 +809,28 @@ function Metric({ label, value }: { label: string; value: string }) {
       <p className="text-sm text-[#637063]">{label}</p>
       <p className="mt-2 text-lg font-semibold">{value}</p>
     </div>
+  );
+}
+
+function BatchToggle({
+  label,
+  checked,
+  onChange,
+}: {
+  label: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 rounded-md border border-[#dce4d8] bg-white px-3 py-2 text-sm font-medium text-[#314632]">
+      <input
+        type="checkbox"
+        checked={checked}
+        onChange={(event) => onChange(event.target.checked)}
+        className="size-4 accent-[#1f4f2a]"
+      />
+      {label}
+    </label>
   );
 }
 
