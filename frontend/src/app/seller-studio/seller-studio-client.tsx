@@ -6,6 +6,7 @@ import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { getApiAuthHeaders } from "@/lib/api-auth";
 import { API_URL } from "@/lib/config";
+import { coerceDetail, slugify, triggerBlobDownload } from "@/lib/download";
 import { MARKETPLACE_PRESETS, MARKETPLACE_REGIONS } from "@/lib/marketplace-presets";
 
 type Status = "idle" | "working" | "done" | "error";
@@ -196,7 +197,7 @@ export default function SellerStudioClient() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(readErrorDetail(data, "Output preview failed."));
+        throw new Error(coerceDetail(data, "Output preview failed."));
       }
 
       const result = (await response.json()) as PreviewResult;
@@ -238,18 +239,13 @@ export default function SellerStudioClient() {
       });
       if (!response.ok) {
         const data = await response.json().catch(() => null);
-        throw new Error(readErrorDetail(data, "Seller Studio pack failed."));
+        throw new Error(coerceDetail(data, "Seller Studio pack failed."));
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${slugify(productName || "product")}-seller-studio.zip`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      URL.revokeObjectURL(url);
+      triggerBlobDownload(
+        await response.blob(),
+        `${slugify(productName, "product")}-seller-studio.zip`,
+      );
       setPackStatus("done");
       setPackMessage("Validated Seller Studio ZIP downloaded successfully.");
     } catch (error) {
@@ -598,17 +594,3 @@ function StatusBadge({ status }: { status: CheckStatus }) {
   return <span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${styles}`}>{status}</span>;
 }
 
-function readErrorDetail(data: unknown, fallback: string) {
-  if (!data || typeof data !== "object") return fallback;
-  const detail = (data as { detail?: unknown }).detail;
-  if (typeof detail === "string") return detail;
-  if (detail && typeof detail === "object") {
-    const message = (detail as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-  }
-  return fallback;
-}
-
-function slugify(value: string) {
-  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60) || "product";
-}

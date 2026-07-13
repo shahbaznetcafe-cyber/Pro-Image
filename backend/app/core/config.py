@@ -1,25 +1,96 @@
-import os
 from functools import lru_cache
-from tempfile import gettempdir
 from pathlib import Path
+from tempfile import gettempdir
+from typing import Annotated
+
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
-class Settings:
-    app_env: str
-    allowed_origins: list[str]
-    api_keys: set[str]
-    supabase_url: str
-    supabase_publishable_key: str
+def _default_jobs_dir() -> str:
+    return str(Path(gettempdir()) / "sbz-jobs")
 
-    def __init__(self) -> None:
-        self.app_env = os.getenv("APP_ENV", "development")
-        self.allowed_origins = _split_env(
-            "ALLOWED_ORIGINS",
-            "http://localhost:3000,http://127.0.0.1:3000",
-        )
-        self.api_keys = set(_split_env("SBZ_API_KEYS", ""))
-        self.supabase_url = os.getenv("SUPABASE_URL", "").rstrip("/")
-        self.supabase_publishable_key = os.getenv("SUPABASE_PUBLISHABLE_KEY", "")
+
+class Settings(BaseSettings):
+    """Typed application configuration.
+
+    Values come from environment variables (validated and coerced on load), so a
+    malformed value fails fast at startup rather than at request time.
+    """
+
+    model_config = SettingsConfigDict(
+        populate_by_name=True,
+        case_sensitive=False,
+        extra="ignore",
+    )
+
+    app_env: str = "development"
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
+        default=["http://localhost:3000", "http://127.0.0.1:3000"],
+        validation_alias="ALLOWED_ORIGINS",
+    )
+    api_keys: Annotated[set[str], NoDecode] = Field(
+        default_factory=set, validation_alias="SBZ_API_KEYS"
+    )
+    supabase_url: str = ""
+    supabase_publishable_key: str = ""
+    # Requests/minute per client IP for public, unauthenticated CPU-heavy
+    # endpoints. 0 disables the limiter.
+    public_rate_limit_per_minute: int = 20
+    # Async batch queue. When set, batch jobs run on an arq worker.
+    redis_url: str = ""
+    jobs_output_dir: str = Field(default_factory=_default_jobs_dir)
+    job_retention_seconds: int = 3600
+    log_level: str = "INFO"
+    sentry_dsn: str = ""
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def _split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
+
+    @field_validator("api_keys", mode="before")
+    @classmethod
+    def _split_keys(cls, value: object) -> object:
+        if isinstance(value, str):
+            return {item.strip() for item in value.split(",") if item.strip()}
+        return value
+
+    @field_validator("supabase_url", mode="before")
+    @classmethod
+    def _strip_trailing_slash(cls, value: object) -> object:
+        return value.rstrip("/") if isinstance(value, str) else value
+
+    @field_validator("redis_url", "sentry_dsn", mode="before")
+    @classmethod
+    def _strip(cls, value: object) -> object:
+        return value.strip() if isinstance(value, str) else value
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _upper(cls, value: object) -> object:
+        return value.upper() if isinstance(value, str) else value
+
+    @field_validator("jobs_output_dir", mode="before")
+    @classmethod
+    def _default_dir_if_blank(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return _default_jobs_dir()
+        return value
+
+    @field_validator("public_rate_limit_per_minute", "job_retention_seconds", mode="before")
+    @classmethod
+    def _blank_int_keeps_default(cls, value: object, info) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return cls.model_fields[info.field_name].default
+        return value
+
+    @field_validator("public_rate_limit_per_minute", "job_retention_seconds", mode="after")
+    @classmethod
+    def _clamp_non_negative(cls, value: int) -> int:
+        return max(0, value)
 
     @property
     def api_auth_enabled(self) -> bool:
@@ -32,6 +103,14 @@ class Settings:
     @property
     def saas_auth_enabled(self) -> bool:
         return bool(self.supabase_url and self.supabase_publishable_key)
+
+    @property
+    def queue_enabled(self) -> bool:
+        return bool(self.redis_url)
+
+    @property
+    def sentry_enabled(self) -> bool:
+        return bool(self.sentry_dsn)
 
     def readiness_checks(self) -> list[dict[str, str | bool]]:
         checks: list[dict[str, str | bool]] = [
@@ -81,11 +160,6 @@ class Settings:
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     return Settings()
-
-
-def _split_env(name: str, default: str) -> list[str]:
-    value = os.getenv(name, default)
-    return [item.strip() for item in value.split(",") if item.strip()]
 
 
 def _temp_dir_writable() -> bool:

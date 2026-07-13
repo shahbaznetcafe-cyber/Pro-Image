@@ -208,6 +208,7 @@ Completed:
 - Phase 8 real SaaS activation
 - Phase 8.1 owner bootstrap and production preflight foundation
 - Output polish pass: restrained enhancement toggle and checkerboard regression coverage
+- Phase 9 reliability and scale hardening (threadpool offload, public rate limits, async batch queue, CI)
 
 Next active phase:
 
@@ -249,3 +250,46 @@ Seller Studio -> cleanup/centering/shadow -> compliance report -> new platform Z
 Output Quality Gate -> preview generated files -> per-output QA -> strict validated ZIP
 Real SaaS -> Supabase Auth -> atomic quota gate -> secure payment approval -> admin console
 ```
+
+## Phase 9: Reliability And Scale Hardening
+
+Goal: Concurrency, abuse, aur high-volume batch load ko safely handle karna, aur
+regressions ko CI se rokna.
+
+Completed in this phase:
+
+- CPU-bound image processing ab threadpool par offload hota hai, event loop block
+  nahi hota (`run_in_threadpool`).
+- Public unauthenticated endpoints (`analyze-images`, `preview-seller-studio`)
+  par per-IP rate limiting (`PUBLIC_RATE_LIMIT_PER_MINUTE`).
+- Async batch queue: Redis + arq worker ke saath `POST /tools/batch-jobs`,
+  status polling, aur ready hone par download. `REDIS_URL` unset ho to inline
+  batch endpoint par graceful fallback.
+- Shared `packager` module taake queued aur inline path identical output den.
+- Job outputs `JOB_RETENTION_SECONDS` ke baad cleanup cron se remove hote hain.
+- GitHub Actions CI: backend ruff + pytest, frontend eslint + tsc + build.
+- New regression tests: packager, rate limiter, aur batch-job flow.
+- Quota policy fix: single seller-pack endpoint pehle build karta hai aur sirf
+  deliverable pack par usage reserve karta hai, taake strict-quality block user
+  ka quota consume na kare.
+- Structured JSON logging (per-request id, method, path, status, latency) aur
+  optional Sentry error tracking (`SENTRY_DSN`).
+- Typed config: `Settings` ab pydantic-settings par hai, malformed env boot par
+  fail-fast karta hai (CSV parsing, clamping, validation).
+- Upload hardening: content-type ke ilawa magic-byte sniffing (JPEG/PNG/WebP)
+  taake spoofed uploads reject hon.
+- Frontend cleanup: shared `lib/download` aur `lib/batch-jobs` clients, taake
+  batch-generator aur seller-studio ka duplicate fetch/download logic ek jagah ho.
+
+New endpoints:
+
+```text
+POST /tools/batch-jobs               enqueue batch, returns { job_id }
+GET  /tools/batch-jobs/{job_id}      status + progress
+GET  /tools/batch-jobs/{job_id}/download  ZIP when completed
+```
+
+Remaining operator steps:
+
+- `docker compose up` se full queued flow (redis + worker) verify karna.
+- Batch UI ka client-side 30-image cap plan limits ke sath align karna.

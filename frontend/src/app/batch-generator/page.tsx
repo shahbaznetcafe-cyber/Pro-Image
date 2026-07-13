@@ -5,6 +5,8 @@ import { ChangeEvent, FormEvent, useMemo, useState } from "react";
 
 import { getApiAuthHeaders } from "@/lib/api-auth";
 import { API_URL } from "@/lib/config";
+import { runBatchSellerPack } from "@/lib/batch-jobs";
+import { slugify, triggerBlobDownload } from "@/lib/download";
 import { SEO_TOOL_PAGES } from "@/lib/seo-pages";
 import { MARKETPLACE_PRESETS as PRESETS, MARKETPLACE_REGIONS } from "@/lib/marketplace-presets";
 
@@ -35,6 +37,7 @@ const DEFAULT_SELECTED = [
   "meta_square",
   "website_webp",
 ];
+
 
 export default function BatchGeneratorPage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -168,31 +171,20 @@ export default function BatchGeneratorPage() {
     formData.append("subject_fill_percent", String(subjectFillPercent));
     formData.append("strict_quality", String(strictQuality));
 
+    const downloadName = `${slugify(projectName, "seller-pack")}-batch-seller-pack.zip`;
+
     setStatus("working");
-    setMessage(`Generating ${outputCount} seller images...`);
+    setMessage(`Queuing ${outputCount} seller images...`);
 
     try {
       const headers = await getApiAuthHeaders();
-      const response = await fetch(`${API_URL}/tools/generate-batch-seller-pack`, {
-        method: "POST",
+      const blob = await runBatchSellerPack({
+        formData,
         headers,
-        body: formData,
+        fallbackTotal: outputCount,
+        onProgress: setMessage,
       });
-
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(data?.detail ?? "Batch image pack generation failed.");
-      }
-
-      const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${slugify(projectName || "seller-pack")}-batch-seller-pack.zip`;
-      document.body.appendChild(link);
-      link.click();
-      link.remove();
-      window.URL.revokeObjectURL(url);
+      triggerBlobDownload(blob, downloadName);
 
       setStatus("done");
       setMessage(`ZIP downloaded with ${outputCount} generated outputs.`);
@@ -789,17 +781,6 @@ function scoreBadgeClass(score: number) {
   }
 
   return "rounded-full bg-[#fff4f1] px-3 py-1 text-sm font-semibold text-[#9a3412]";
-}
-
-function slugify(value: string) {
-  return (
-    value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]+/g, "-")
-      .replace(/^-+|-+$/g, "")
-      .slice(0, 60) || "seller-pack"
-  );
 }
 
 function loadSavedPresets() {

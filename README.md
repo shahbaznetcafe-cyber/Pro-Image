@@ -5,7 +5,7 @@ Seller-focused marketplace image preparation SaaS.
 Current active phase:
 
 ```text
-Phase 7.2: Output Quality Gate
+Phase 9: Reliability And Scale Hardening
 ```
 
 ## Project Structure
@@ -202,6 +202,34 @@ backend/Dockerfile
 frontend/Dockerfile
 docker-compose.yml
 ```
+
+## Async Batch Queue
+
+Large batches can run on a Redis-backed [arq](https://arq-docs.helpmanual.io/)
+worker instead of blocking the HTTP request. Set `REDIS_URL` and a shared
+`JOBS_OUTPUT_DIR` on both the web process and the worker.
+
+```text
+POST /tools/batch-jobs               enqueue a batch, returns { job_id }
+GET  /tools/batch-jobs/{job_id}      status + progress (queued/processing/completed/blocked/failed)
+GET  /tools/batch-jobs/{job_id}/download  ZIP once the job is completed
+```
+
+Run the worker locally:
+
+```powershell
+cd backend
+$env:REDIS_URL = "redis://localhost:6379/0"
+.\.venv\Scripts\arq.exe app.worker.WorkerSettings
+```
+
+`docker-compose.yml` wires `redis`, `backend`, and `worker` with a shared
+`job_storage` volume, so `docker compose up` runs the full queued flow.
+
+When `REDIS_URL` is unset the queue endpoints return `503` and the frontend
+falls back to the synchronous `/tools/generate-batch-seller-pack` endpoint, so
+existing single-process deployments keep working unchanged. Finished job
+outputs are cleaned up after `JOB_RETENTION_SECONDS` (default 3600).
 
 ## Launch Hardening
 

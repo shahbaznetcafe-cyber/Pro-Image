@@ -13,6 +13,21 @@ ALLOWED_CONTENT_TYPES = {
 }
 
 
+def _sniff_image_format(data: bytes) -> str | None:
+    """Identify the image type from its leading bytes (magic numbers).
+
+    The client-supplied ``content_type`` header is not trusted; this confirms the
+    payload really is one of the formats we accept.
+    """
+    if data[:3] == b"\xff\xd8\xff":
+        return "jpeg"
+    if data[:8] == b"\x89PNG\r\n\x1a\n":
+        return "png"
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        return "webp"
+    return None
+
+
 async def read_and_validate_upload(file: UploadFile) -> bytes:
     if file.content_type not in ALLOWED_CONTENT_TYPES:
         raise HTTPException(
@@ -26,6 +41,12 @@ async def read_and_validate_upload(file: UploadFile) -> bytes:
 
     if len(data) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail="Image must be 15MB or smaller.")
+
+    if _sniff_image_format(data) is None:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is not a JPG, PNG, or WebP image.",
+        )
 
     try:
         with Image.open(BytesIO(data)) as image:
