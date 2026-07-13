@@ -211,7 +211,7 @@ export default async function ToolPage({ params }: ToolPageProps) {
               offers: {
                 "@type": "Offer",
                 price: "0",
-                priceCurrency: "PKR",
+                priceCurrency: "USD",
               },
             }),
           }}

@@ -296,9 +296,9 @@ Plan limits are enforced atomically in `seller_reserve_usage`:
 
 ```text
 Free     5/day, 150/month, 1 image/batch
-Starter  500/month, 10 images/batch
-Pro      3000/month, 30 images/batch
-Agency   10000/month, 100 images/batch
+Starter  300/month, 10 images/batch
+Pro      1500/month, 30 images/batch
+Agency   5000/month, 100 images/batch
 ```
 
 Usage is consumed when processing starts, including failed processing attempts.

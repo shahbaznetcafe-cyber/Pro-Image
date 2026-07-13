@@ -131,32 +131,32 @@ MVP ko lean rakhna hai. Pehle earning ke qareeb features build karne hain.
 
 ### Starter
 
-- Rs. 799/month
-- 500 images/month
+- $6.99/month
+- 300 source images/month
 - ZIP download
 - No watermark
 
 ### Pro
 
-- Rs. 1499/month
-- 3000 images/month
+- $14.99/month
+- 1500 source images/month
 - Batch processing
 - All marketplace packs
 
 ### Agency
 
-- Rs. 2999/month
-- 10000 images/month
+- $34.99/month
+- 5000 source images/month
 - Branding
-- Team/client features later
+- Saved client presets
 
 Launch offer wording should be clear:
 
 ```text
-First 50 users: Rs. 999/month locked Pro price
+International launch pricing: $6.99 Starter, $14.99 Pro, and $34.99 Agency.
 ```
 
-Avoid confusing wording like "Rs. 999/month lifetime Pro" unless it is clearly explained.
+Avoid confusing lifetime pricing; use clear monthly USD pricing and time-bound promotions.
 
 ## Presets
 
@@ -228,7 +228,7 @@ Website: WebP recommended
 - Frontend: Vercel
 - Backend: Render or Railway
 - Database: Supabase
-- Payments first: manual JazzCash/Easypaisa/Bank transfer
+- Payments first: manual PayPal/Wise/Bank transfer
 
 ## Recommended Database Tables
 
@@ -517,6 +517,8 @@ Payment request -> admin review -> atomic approval
 
 Security decisions:
 
+- New account passwords require at least 8 characters, one lowercase letter,
+  one uppercase letter, and one digit.
 - Every seller table has RLS and explicit grants.
 - Normal users cannot update `plan`, `is_admin`, review fields, or usage rows.
 - Admin RPCs validate `seller_profiles.is_admin` inside the transaction.

@@ -81,6 +81,51 @@ def _detached_pixel_ratio(mask: Image.Image) -> float:
     return max(0.0, (total - max(component_sizes)) / total)
 
 
+def _checkerboard_remnant_score(image: Image.Image, foreground_mask: Image.Image) -> float:
+    preview = image.convert("RGB")
+    preview.thumbnail((360, 360), Image.Resampling.LANCZOS)
+    mask = foreground_mask.resize(preview.size, Image.Resampling.NEAREST)
+    saturation = preview.convert("HSV").split()[1]
+    luminance = preview.convert("L")
+    width, height = preview.size
+    mask_data = list(mask.getdata())
+    saturation_data = list(saturation.getdata())
+    luminance_data = list(luminance.getdata())
+
+    neutral = bytearray(width * height)
+    foreground_count = 0
+    neutral_count = 0
+    for index, (mask_value, saturation_value, light_value) in enumerate(
+        zip(mask_data, saturation_data, luminance_data)
+    ):
+        if mask_value < 128:
+            continue
+        foreground_count += 1
+        if saturation_value <= 34 and 45 <= light_value <= 246:
+            neutral[index] = 1
+            neutral_count += 1
+
+    if foreground_count == 0 or neutral_count / foreground_count < 0.025:
+        return 0.0
+
+    transitions = 0
+    comparisons = 0
+    for y in range(height):
+        row = y * width
+        for x in range(width):
+            index = row + x
+            if not neutral[index]:
+                continue
+            if x + 1 < width and neutral[index + 1]:
+                comparisons += 1
+                transitions += int(14 <= abs(luminance_data[index] - luminance_data[index + 1]) <= 80)
+            if y + 1 < height and neutral[index + width]:
+                comparisons += 1
+                transitions += int(14 <= abs(luminance_data[index] - luminance_data[index + width]) <= 80)
+
+    return round(transitions / max(1, comparisons), 4)
+
+
 def _corner_background_distance(image: Image.Image, preset: ImagePreset) -> float:
     rgb = image.convert("RGB")
     sample_size = max(4, min(rgb.size) // 30)
@@ -126,6 +171,15 @@ def assess_output(image_bytes: bytes, preset: ImagePreset) -> OutputQuality:
             f"{normalized_format}; expected {expected_format}.",
         )
     )
+    if preset.max_file_bytes:
+        size_status: QualityStatus = "pass" if len(image_bytes) <= preset.max_file_bytes else "fail"
+        checks.append(
+            _check(
+                "File size",
+                size_status,
+                f"{round(len(image_bytes) / 1024 / 1024, 2)} MB; maximum {round(preset.max_file_bytes / 1024 / 1024, 2)} MB.",
+            )
+        )
 
     mask = _foreground_mask(image, preset)
     bounds = mask.getbbox()
@@ -144,10 +198,10 @@ def assess_output(image_bytes: bytes, preset: ImagePreset) -> OutputQuality:
 
     if not bounds:
         checks.append(_check("Product detected", "fail", "No visible product was detected in the output."))
-    elif 75 <= fill_percent <= 90:
+    elif preset.fill_min <= fill_percent <= preset.fill_max:
         checks.append(_check("Product fill", "pass", f"Product fills {fill_percent}% of the canvas."))
-    elif 68 <= fill_percent <= 94:
-        checks.append(_check("Product fill", "warning", f"Product fills {fill_percent}%; 75-90% is preferred."))
+    elif preset.fill_min - 5 <= fill_percent <= min(98, preset.fill_max + 4):
+        checks.append(_check("Product fill", "warning", f"Product fills {fill_percent}%; {preset.fill_min}-{preset.fill_max}% is preferred for {preset.label}."))
     else:
         checks.append(_check("Product fill", "fail", f"Product fills {fill_percent}%; output is not publish-ready."))
 
@@ -165,6 +219,14 @@ def assess_output(image_bytes: bytes, preset: ImagePreset) -> OutputQuality:
         checks.append(_check("Detached artifacts", "warning", f"{round(detached_ratio * 100, 1)}% detached foreground detected."))
     else:
         checks.append(_check("Detached artifacts", "pass", "No significant detached watermark or background artifact detected."))
+
+    checkerboard_score = _checkerboard_remnant_score(image, mask)
+    if checkerboard_score >= 0.085:
+        checks.append(_check("Background remnants", "fail", "Alternating grey checkerboard pixels remain around the product."))
+    elif checkerboard_score >= 0.045:
+        checks.append(_check("Background remnants", "warning", "Possible checkerboard residue detected; review product edges."))
+    else:
+        checks.append(_check("Background remnants", "pass", "No checkerboard edge pattern detected."))
 
     partial_alpha_percent = 0.0
     transparent_percent = 0.0
@@ -184,9 +246,13 @@ def assess_output(image_bytes: bytes, preset: ImagePreset) -> OutputQuality:
         )
         halo_status: QualityStatus = "pass" if partial_alpha_percent <= 8 else "warning" if partial_alpha_percent <= 15 else "fail"
         checks.append(_check("Edge halo", halo_status, f"Partial-alpha area is {partial_alpha_percent}%."))
+    elif preset.background_policy == "any":
+        checks.append(_check("Canvas background", "pass", "This profile permits a contextual background."))
     else:
         background_distance = _corner_background_distance(image, preset)
-        background_status: QualityStatus = "pass" if background_distance <= 4 else "warning" if background_distance <= 10 else "fail"
+        pass_limit = 4 if preset.background_policy == "pure_white" else 12
+        warning_limit = 10 if preset.background_policy == "pure_white" else 24
+        background_status: QualityStatus = "pass" if background_distance <= pass_limit else "warning" if background_distance <= warning_limit else "fail"
         checks.append(
             _check(
                 "Canvas background",
@@ -213,9 +279,13 @@ def assess_output(image_bytes: bytes, preset: ImagePreset) -> OutputQuality:
             "subject_fill_percent": fill_percent,
             "edge_margin_percent": edge_margin_percent,
             "detached_foreground_percent": round(detached_ratio * 100, 2),
+            "checkerboard_remnant_score": checkerboard_score,
             "partial_alpha_percent": partial_alpha_percent,
             "transparent_percent": transparent_percent,
             "background_distance": background_distance,
+            "file_size_bytes": len(image_bytes),
+            "policy_fill_min": preset.fill_min,
+            "policy_fill_max": preset.fill_max,
         },
     }
 

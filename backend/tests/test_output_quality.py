@@ -1,5 +1,6 @@
 from io import BytesIO
 import unittest
+from dataclasses import replace
 
 from PIL import Image, ImageDraw
 
@@ -42,6 +43,23 @@ class OutputQualityTests(unittest.TestCase):
         self.assertTrue(
             any(check["label"] == "Product detected" for check in result["checks"])
         )
+
+    def test_checkerboard_halo_cannot_pass_quality_gate(self) -> None:
+        image = Image.new("RGBA", (600, 600), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(image)
+        tile = 12
+        for y in range(80, 520, tile):
+            for x in range(100, 500, tile):
+                color = (175, 175, 175, 255) if (x // tile + y // tile) % 2 else (225, 225, 225, 255)
+                draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=color)
+        draw.ellipse((180, 100, 420, 500), fill=(225, 115, 25, 255))
+        buffer = BytesIO()
+        image.save(buffer, "PNG")
+
+        result = assess_output(buffer.getvalue(), replace(PRESETS["transparent_product"], width=600, height=600))
+
+        self.assertNotEqual(result["status"], "pass")
+        self.assertTrue(any(check["label"] == "Background remnants" and check["status"] != "pass" for check in result["checks"]))
 
 
 if __name__ == "__main__":

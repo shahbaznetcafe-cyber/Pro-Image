@@ -13,7 +13,7 @@ export function ManualPaymentForm({
   disabled?: boolean;
 }) {
   const [plan, setPlan] = useState<PlanId>("pro");
-  const [method, setMethod] = useState("JazzCash");
+  const [method, setMethod] = useState("PayPal");
   const [transactionRef, setTransactionRef] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "success" | "error">(
     "idle",
@@ -69,9 +69,10 @@ export function ManualPaymentForm({
           onChange={(event) => setMethod(event.target.value)}
           className="mt-2 w-full rounded-md border border-[#cbd8c7] px-3 py-2 text-sm outline-none ring-[#537c55] focus:ring-2"
         >
-          <option>JazzCash</option>
-          <option>Easypaisa</option>
+          <option>PayPal</option>
+          <option>Wise</option>
           <option>Bank Transfer</option>
+          <option>Other</option>
         </select>
       </label>
 

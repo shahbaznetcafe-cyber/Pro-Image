@@ -24,3 +24,22 @@ body {
   color: var(--foreground);
   font-family: var(--font-sans);
 }
+
+html {
+  scroll-behavior: smooth;
+}
+
+section[id] {
+  scroll-margin-top: 88px;
+}
+
+::selection {
+  background: #d8edcf;
+  color: #173d20;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+}

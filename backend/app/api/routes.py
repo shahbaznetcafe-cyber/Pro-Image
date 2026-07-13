@@ -61,7 +61,7 @@ async def api_seller_pack(
     cleanup_background: bool = Form(default=False),
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
-    subject_fill_percent: int = Form(default=84, ge=65, le=92),
+    subject_fill_percent: int = Form(default=85, ge=65, le=95),
     strict_quality: bool = Form(default=False),
 ) -> FileResponse:
     selected_ids = [item.strip() for item in preset_ids.split(",") if item.strip()]
@@ -133,7 +133,7 @@ async def api_resize_alias(
     cleanup_background: bool = Form(default=False),
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
-    subject_fill_percent: int = Form(default=84, ge=65, le=92),
+    subject_fill_percent: int = Form(default=85, ge=65, le=95),
     strict_quality: bool = Form(default=False),
 ) -> FileResponse:
     return await api_seller_pack(

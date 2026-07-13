@@ -108,6 +108,35 @@ class ProcessorTests(unittest.TestCase):
         assert bounds is not None
         self.assertGreater(bounds[3] - bounds[1], 1100)
 
+    def test_local_checkerboard_halo_around_subject_is_removed(self) -> None:
+        source = Image.new("RGB", (900, 700), "white")
+        draw = ImageDraw.Draw(source)
+        tile = 14
+        for y in range(80, 650, tile):
+            for x in range(210, 700, tile):
+                color = (188, 188, 188) if (x // tile + y // tile) % 2 else (224, 224, 224)
+                draw.rectangle((x, y, x + tile - 1, y + tile - 1), fill=color)
+        draw.ellipse((310, 90, 600, 580), fill=(238, 135, 24))
+        draw.ellipse((365, 220, 430, 285), fill=(252, 252, 250))
+        draw.ellipse((480, 220, 545, 285), fill=(252, 252, 250))
+
+        source_buffer = BytesIO()
+        source.save(source_buffer, "PNG")
+        output_bytes, _ = process_image(
+            source_buffer.getvalue(),
+            PRESETS["transparent_product"],
+            ProcessingOptions(cleanup_background=True, smart_center=True),
+        )
+
+        output = Image.open(BytesIO(output_bytes)).convert("RGBA")
+        alpha = output.getchannel("A")
+        bounds = alpha.getbbox()
+        self.assertIsNotNone(bounds)
+        assert bounds is not None
+        self.assertLess(bounds[2] - bounds[0], 1100)
+        self.assertEqual(alpha.getpixel((120, 800)), 0)
+        self.assertEqual(alpha.getpixel((1480, 800)), 0)
+
     def test_dark_checkerboard_is_not_baked_into_marketplace_output(self) -> None:
         source = Image.new("RGB", (900, 700), "white")
         draw = ImageDraw.Draw(source)
@@ -130,6 +159,29 @@ class ProcessorTests(unittest.TestCase):
         output = Image.open(BytesIO(output_bytes)).convert("RGB")
         self.assertEqual(output.getpixel((250, 250)), (255, 255, 255))
         self.assertEqual(output.getpixel((1750, 250)), (255, 255, 255))
+
+    def test_visible_product_fill_matches_requested_target_after_crop(self) -> None:
+        source = Image.new("RGB", (1400, 900), "white")
+        draw = ImageDraw.Draw(source)
+        draw.rectangle((575, 110, 825, 790), fill=(28, 118, 205))
+
+        source_buffer = BytesIO()
+        source.save(source_buffer, "PNG")
+        output_bytes, report = process_image(
+            source_buffer.getvalue(),
+            PRESETS["amazon_main"],
+            ProcessingOptions(
+                cleanup_background=True,
+                smart_center=True,
+                subject_fill_percent=84,
+            ),
+        )
+
+        output = Image.open(BytesIO(output_bytes)).convert("RGB")
+        self.assertGreaterEqual(report["subject_fill_percent"], 82)
+        self.assertLessEqual(report["subject_fill_percent"], 85)
+        self.assertEqual(output.getpixel((100, 100)), (255, 255, 255))
+        self.assertEqual(output.getpixel((1900, 1900)), (255, 255, 255))
 
 
 if __name__ == "__main__":

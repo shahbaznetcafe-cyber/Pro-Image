@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 
 import { AdminRefreshButton } from "@/components/admin-refresh-button";
 import { PaymentReviewActions } from "@/components/payment-review-actions";
+import { getPlan } from "@/lib/plans";
 import { createClient } from "@/lib/supabase/server";
 
 type PaymentRequest = {
@@ -87,6 +88,7 @@ export default async function AdminPaymentsPage() {
             </div>
             <dl className="mt-4 grid grid-cols-2 gap-3 text-sm">
               <Detail label="Plan" value={request.plan} />
+              <Detail label="Expected payment" value={getPlan(request.plan).price} preserveCase />
               <Detail label="Method" value={request.method} />
               <Detail label="Transaction" value={request.transaction_ref} />
               <Detail label="Submitted" value={new Date(request.created_at).toLocaleString()} />
@@ -105,11 +107,11 @@ export default async function AdminPaymentsPage() {
   );
 }
 
-function Detail({ label, value }: { label: string; value: string }) {
+function Detail({ label, value, preserveCase = false }: { label: string; value: string; preserveCase?: boolean }) {
   return (
     <div>
       <dt className="text-[#637063]">{label}</dt>
-      <dd className="mt-1 break-words font-semibold capitalize">{value}</dd>
+      <dd className={`mt-1 break-words font-semibold ${preserveCase ? "" : "capitalize"}`}>{value}</dd>
     </div>
   );
 }

@@ -15,8 +15,9 @@ export default function PricingPage() {
               SBZ SellImage Pro
             </Link>
             <h1 className="mt-2 text-4xl font-semibold tracking-tight">
-              Pricing
+              International pricing
             </h1>
+            <p className="mt-2 text-sm text-[#637063]">All prices are shown in USD.</p>
           </div>
           <Link
             href="/login"
@@ -38,7 +39,7 @@ export default function PricingPage() {
               <h2 className="mt-3 text-2xl font-semibold">{plan.name}</h2>
               <p className="mt-2 text-3xl font-semibold">{plan.price}</p>
               <p className="mt-2 text-sm text-[#637063]">
-                {plan.imagesPerMonth} images/month
+                {plan.imagesPerMonth.toLocaleString()} source images/month
               </p>
               <ul className="mt-5 space-y-2 text-sm text-[#314632]">
                 {plan.features.map((feature) => (
@@ -46,7 +47,7 @@ export default function PricingPage() {
                 ))}
               </ul>
               <Link
-                href={plan.id === "free" ? "/" : "/dashboard/billing"}
+                href={plan.id === "free" ? "/seller-studio" : "/dashboard/billing"}
                 className="mt-5 inline-flex rounded-md border border-[#c8d7c5] px-4 py-3 text-sm font-semibold hover:bg-[#f3f6f1]"
               >
                 {plan.id === "free" ? "Try free" : "Request activation"}

@@ -42,7 +42,7 @@ create table if not exists public.seller_payment_requests (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references public.seller_profiles(id) on delete cascade,
   plan text not null check (plan in ('starter', 'pro', 'agency')),
-  method text not null check (method in ('JazzCash', 'Easypaisa', 'Bank Transfer')),
+  method text not null check (method in ('PayPal', 'Wise', 'Bank Transfer', 'Other', 'JazzCash', 'Easypaisa')),
   transaction_ref text not null check (char_length(trim(transaction_ref)) between 4 and 120),
   status text not null default 'pending'
     check (status in ('pending', 'approved', 'rejected')),
@@ -51,6 +51,14 @@ create table if not exists public.seller_payment_requests (
   reviewed_at timestamptz,
   reviewed_by uuid references public.seller_profiles(id) on delete set null
 );
+
+-- Keep existing local-launch payment records valid while exposing international
+-- methods for all new requests.
+alter table public.seller_payment_requests
+  drop constraint if exists seller_payment_requests_method_check;
+alter table public.seller_payment_requests
+  add constraint seller_payment_requests_method_check
+  check (method in ('PayPal', 'Wise', 'Bank Transfer', 'Other', 'JazzCash', 'Easypaisa'));
 
 create table if not exists public.seller_subscriptions (
   id uuid primary key default gen_random_uuid(),
@@ -170,9 +178,9 @@ begin
   end if;
 
   v_monthly_limit := case v_plan
-    when 'starter' then 500
-    when 'pro' then 3000
-    when 'agency' then 10000
+    when 'starter' then 300
+    when 'pro' then 1500
+    when 'agency' then 5000
     else 150
   end;
   v_batch_limit := case v_plan
@@ -400,5 +408,5 @@ with check ((select auth.uid()) = user_id and status = 'pending');
 
 drop policy if exists "seller subscriptions read" on public.seller_subscriptions;
 create policy "seller subscriptions read"
-on public.seller_subscriptions for select to authenticated
+run kar di haion public.seller_subscriptions for select to authenticated
 using ((select auth.uid()) = user_id or private.seller_is_admin());

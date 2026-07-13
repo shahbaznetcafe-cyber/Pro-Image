@@ -2,10 +2,11 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { ChangeEvent, FormEvent, useEffect, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 
 import { getApiAuthHeaders } from "@/lib/api-auth";
 import { API_URL } from "@/lib/config";
+import { MARKETPLACE_PRESETS, MARKETPLACE_REGIONS } from "@/lib/marketplace-presets";
 
 type Status = "idle" | "working" | "done" | "error";
 type CheckStatus = "pass" | "warning" | "fail";
@@ -60,27 +61,7 @@ type PreviewResult = {
   outputs: PreviewOutput[];
 };
 
-type ListingCopy = {
-  titles: string[];
-  bullets: string[];
-  description: string;
-  alt_text: string;
-  whatsapp_message: string;
-  generation_mode: string;
-};
-
-const STUDIO_PRESETS = [
-  { id: "daraz_square", label: "Daraz", size: "1000 x 1000", group: "Marketplace" },
-  { id: "google_shopping", label: "Google Shopping", size: "1500 x 1500", group: "Marketplace" },
-  { id: "amazon_main", label: "Amazon Main", size: "2000 x 2000", group: "Marketplace" },
-  { id: "transparent_product", label: "Transparent PNG", size: "1600 x 1600", group: "Studio" },
-  { id: "tiktok_square", label: "TikTok Square", size: "640 x 640", group: "Ads" },
-  { id: "tiktok_horizontal", label: "TikTok Horizontal", size: "1200 x 628", group: "Ads" },
-  { id: "tiktok_vertical", label: "TikTok Vertical", size: "720 x 1280", group: "Ads" },
-  { id: "website_webp", label: "Website WebP", size: "1600 x 1600", group: "Website" },
-];
-
-const DEFAULT_PRESETS = ["daraz_square", "google_shopping", "transparent_product"];
+const DEFAULT_PRESETS = ["amazon_main", "google_shopping", "transparent_product"];
 
 export default function SellerStudioClient() {
   const [file, setFile] = useState<File | null>(null);
@@ -91,20 +72,17 @@ export default function SellerStudioClient() {
   const [smartCenter, setSmartCenter] = useState(true);
   const [addShadow, setAddShadow] = useState(false);
   const [polishOutput, setPolishOutput] = useState(true);
-  const [subjectFillPercent, setSubjectFillPercent] = useState(84);
+  const [subjectFillPercent, setSubjectFillPercent] = useState(85);
+  const [region, setRegion] = useState("All regions");
   const [previewStatus, setPreviewStatus] = useState<Status>("idle");
   const [outputPreview, setOutputPreview] = useState<PreviewResult | null>(null);
   const [previewMessage, setPreviewMessage] = useState("");
   const [packStatus, setPackStatus] = useState<Status>("idle");
   const [packMessage, setPackMessage] = useState("");
-
-  const [brand, setBrand] = useState("");
-  const [category, setCategory] = useState("");
-  const [primaryFeature, setPrimaryFeature] = useState("");
-  const [audience, setAudience] = useState("");
-  const [copyStatus, setCopyStatus] = useState<Status>("idle");
-  const [copyResult, setCopyResult] = useState<ListingCopy | null>(null);
-  const [copyMessage, setCopyMessage] = useState("");
+  const studioPresets = useMemo(
+    () => MARKETPLACE_PRESETS.filter((preset) => region === "All regions" || preset.regions.includes(region) || preset.regions.includes("Global")),
+    [region],
+  );
 
   useEffect(() => {
     if (!file) return;
@@ -170,6 +148,11 @@ export default function SellerStudioClient() {
 
   function updateShadow(value: boolean) {
     setAddShadow(value);
+    invalidatePreview();
+  }
+
+  function updatePolish(value: boolean) {
+    setPolishOutput(value);
     invalidatePreview();
   }
 
@@ -275,72 +258,60 @@ export default function SellerStudioClient() {
     }
   }
 
-  async function generateCopy(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (productName.trim().length < 2) {
-      setCopyStatus("error");
-      setCopyMessage("Add a product name first.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("product_name", productName);
-    formData.append("brand", brand);
-    formData.append("category", category);
-    formData.append("primary_feature", primaryFeature);
-    formData.append("audience", audience);
-    setCopyStatus("working");
-    setCopyMessage("Building listing copy...");
-
-    try {
-      const response = await fetch(`${API_URL}/tools/generate-listing-copy`, {
-        method: "POST",
-        body: formData,
-      });
-      if (!response.ok) {
-        const data = await response.json().catch(() => null);
-        throw new Error(readErrorDetail(data, "Listing copy generation failed."));
-      }
-      setCopyResult((await response.json()) as ListingCopy);
-      setCopyStatus("done");
-      setCopyMessage("Listing copy is ready for review.");
-    } catch (error) {
-      setCopyStatus("error");
-      setCopyMessage(error instanceof Error ? error.message : "Listing copy generation failed.");
-    }
-  }
-
   return (
     <main className="min-h-screen bg-[#f6f8f5] text-[#172018]">
       <div className="mx-auto w-full max-w-7xl px-5 py-5 sm:px-8 lg:px-10">
-        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#dce4d8] pb-5">
-          <Link href="/" className="text-sm font-semibold uppercase tracking-[0.18em] text-[#4f6f4f]">
-            SBZ SellImage Pro
-          </Link>
-          <nav className="flex flex-wrap gap-2">
-            <Link href="/" className="rounded-md border border-[#c8d7c5] bg-white px-4 py-2 text-sm font-semibold text-[#314632]">
+        <header className="flex flex-wrap items-center justify-between gap-4 border-b border-[#dce4d8] pb-4">
+          <div className="flex items-center gap-4">
+            <Link href="/" className="text-sm font-semibold uppercase tracking-[0.16em] text-[#315c39]">
+              SBZ SellImage Pro
+            </Link>
+            <span className="hidden h-5 w-px bg-[#d4ded1] sm:block" aria-hidden="true" />
+            <span className="hidden text-sm text-[#637063] sm:inline">Single product workspace</span>
+          </div>
+          <nav aria-label="Product navigation" className="grid w-full grid-cols-4 gap-1 rounded-lg border border-[#dce4d8] bg-white p-1 shadow-sm sm:flex sm:w-auto sm:items-center">
+            <Link href="/seller-studio" aria-current="page" className="rounded-md bg-[#edf3eb] px-2 py-2 text-center text-xs font-semibold text-[#1f4f2a] sm:px-3 sm:text-sm">
+              Seller Studio
+            </Link>
+            <Link href="/batch-generator" className="rounded-md px-2 py-2 text-center text-xs font-semibold text-[#526052] hover:bg-[#f2f5f1] hover:text-[#1f4f2a] sm:px-3 sm:text-sm">
               Batch generator
             </Link>
-            <Link href="/dashboard" className="rounded-md bg-[#1f4f2a] px-4 py-2 text-sm font-semibold text-white">
+            <Link href="/listing-assistant" className="rounded-md px-2 py-2 text-center text-xs font-semibold text-[#526052] hover:bg-[#f2f5f1] hover:text-[#1f4f2a] sm:px-3 sm:text-sm">
+              Listing
+            </Link>
+            <Link href="/dashboard" className="rounded-md px-2 py-2 text-center text-xs font-semibold text-[#526052] hover:bg-[#f2f5f1] hover:text-[#1f4f2a] sm:px-3 sm:text-sm">
               Dashboard
             </Link>
           </nav>
         </header>
 
-        <section className="py-8">
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#4f6f4f]">Phase 7.2</p>
-          <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight sm:text-5xl">Seller Studio Output Quality Gate</h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-[#637063]">
-            Prepare the product, preview every generated output, and download only after the final marketplace files pass quality control.
-          </p>
+        <section className="py-7">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[#4f6f4f]">Single product workflow</p>
+              <h1 className="mt-2 text-3xl font-semibold tracking-tight sm:text-4xl">Create a publish-ready image pack</h1>
+              <p className="mt-3 max-w-3xl text-sm leading-6 text-[#637063] sm:text-base">
+                Upload once, set the product standard, review the final files, and export one validated ZIP.
+              </p>
+            </div>
+            <span className="rounded-full border border-[#d4ded1] bg-white px-3 py-1.5 text-xs font-semibold text-[#526052]">
+              Files processed temporarily
+            </span>
+          </div>
+          <WorkflowProgress
+            hasFile={Boolean(file)}
+            hasPreview={Boolean(outputPreview)}
+            canDownload={canDownload}
+            exported={packStatus === "done"}
+          />
         </section>
 
         <section className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="rounded-lg border border-[#dce4d8] bg-white p-5 shadow-sm">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <p className="text-sm font-semibold text-[#4f6f4f]">1. Product photo</p>
-                <h2 className="mt-1 text-2xl font-semibold">Prepare the master image</h2>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6f4f]">Step 1</p>
+                <h2 className="mt-1 text-2xl font-semibold">Add and prepare your product</h2>
               </div>
               <span className="rounded-full bg-[#edf3eb] px-3 py-2 text-sm font-semibold text-[#314632]">
                 {selectedPresets.length} outputs selected
@@ -348,11 +319,20 @@ export default function SellerStudioClient() {
             </div>
 
             <div className="mt-5 grid gap-5 md:grid-cols-[280px_1fr]">
-              <label className="relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#aebfac] bg-[#f3f6f1] text-center">
+              <label className="group relative flex aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-lg border border-dashed border-[#aebfac] bg-[#f3f6f1] text-center transition hover:border-[#537c55] hover:bg-[#eef4ec] focus-within:ring-2 focus-within:ring-[#537c55] focus-within:ring-offset-2">
                 {sourcePreviewUrl ? (
-                  <Image src={sourcePreviewUrl} alt="Selected product preview" fill unoptimized className="object-contain p-3" sizes="280px" />
+                  <>
+                    <Image src={sourcePreviewUrl} alt="Selected product preview" fill unoptimized className="object-contain p-3" sizes="280px" />
+                    <span className="absolute inset-x-3 bottom-3 rounded-md bg-[#172018]/85 px-3 py-2 text-xs font-semibold text-white opacity-0 transition group-hover:opacity-100 group-focus-within:opacity-100">
+                      Replace image
+                    </span>
+                  </>
                 ) : (
-                  <span className="px-5 text-sm leading-6 text-[#637063]">Select JPG, PNG, or WebP product image</span>
+                  <span className="px-6">
+                    <span className="mx-auto flex size-10 items-center justify-center rounded-full bg-white text-xl text-[#315c39] shadow-sm" aria-hidden="true">+</span>
+                    <span className="mt-3 block text-sm font-semibold text-[#314632]">Upload product image</span>
+                    <span className="mt-1 block text-xs leading-5 text-[#637063]">JPG, PNG, or WebP</span>
+                  </span>
                 )}
                 <input type="file" accept="image/jpeg,image/png,image/webp" onChange={selectFile} className="sr-only" />
               </label>
@@ -363,10 +343,10 @@ export default function SellerStudioClient() {
                   <input value={productName} onChange={(event) => setProductName(event.target.value)} placeholder="e.g. Classic leather wallet" className="mt-2 w-full rounded-md border border-[#cbd8c7] bg-[#fbfcfa] px-3 py-2 outline-none ring-[#537c55] focus:ring-2" />
                 </label>
                 <div className="mt-5 grid gap-3 sm:grid-cols-3 md:grid-cols-1 xl:grid-cols-3">
-                  <OptionToggle label="Background cleanup" detail="Plain and checkerboard" checked={cleanupBackground} onChange={updateCleanupBackground} />
-                  <OptionToggle label="Smart centering" detail="Normalize product position" checked={smartCenter} onChange={updateSmartCenter} />
+                  <OptionToggle label="Background cleanup" detail="Clean edges and checkerboard" checked={cleanupBackground} onChange={updateCleanupBackground} />
+                  <OptionToggle label="Smart centering" detail="Crop and center the product" checked={smartCenter} onChange={updateSmartCenter} />
                   <OptionToggle label="Natural shadow" detail="White outputs only" checked={addShadow} onChange={updateShadow} />
-                  <OptionToggle label="Light polish" detail="Color, contrast, sharpness" checked={polishOutput} onChange={setPolishOutput} />
+                  <OptionToggle label="Light polish" detail="Color, contrast, sharpness" checked={polishOutput} onChange={updatePolish} />
                 </div>
                 <label className="mt-5 block rounded-lg border border-[#dce4d8] p-4">
                   <span className="flex items-center justify-between gap-3 text-sm font-semibold">
@@ -374,19 +354,28 @@ export default function SellerStudioClient() {
                     <span>{subjectFillPercent}%</span>
                   </span>
                   <input type="range" min="65" max="92" value={subjectFillPercent} disabled={!smartCenter} onChange={(event) => updateFill(Number(event.target.value))} className="mt-3 w-full accent-[#1f4f2a] disabled:opacity-50" />
-                  <span className="mt-2 block text-xs leading-5 text-[#637063]">Recommended marketplace range: 75-90% visible product fill.</span>
+                  <span className="mt-2 block text-xs leading-5 text-[#637063]">85% is the safest general main-image target; each output is checked against its own marketplace policy.</span>
                 </label>
               </div>
             </div>
 
             <div className="mt-7 border-t border-[#dce4d8] pt-5">
-              <p className="text-sm font-semibold text-[#4f6f4f]">2. Output presets</p>
+              <div className="flex flex-wrap items-end justify-between gap-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6f4f]">Step 2 - Choose outputs</p>
+                <label className="text-xs font-semibold text-[#526050]">
+                  Market region
+                  <select value={region} onChange={(event) => setRegion(event.target.value)} className="ml-2 rounded-md border border-[#c8d7c5] bg-white px-2 py-1.5 outline-none focus:ring-2 focus:ring-[#537c55]">
+                    {MARKETPLACE_REGIONS.map((item) => <option key={item}>{item}</option>)}
+                  </select>
+                </label>
+              </div>
               <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {STUDIO_PRESETS.map((preset) => {
+                {studioPresets.map((preset) => {
                   const selected = selectedPresets.includes(preset.id);
                   return (
-                    <button key={preset.id} type="button" onClick={() => togglePreset(preset.id)} className={selected ? "rounded-lg border border-[#1f4f2a] bg-[#edf7eb] p-4 text-left" : "rounded-lg border border-[#dce4d8] bg-white p-4 text-left hover:border-[#8eaa8b]"}>
-                      <p className="text-xs font-semibold uppercase text-[#6b7b67]">{preset.group}</p>
+                    <button key={preset.id} type="button" aria-pressed={selected} onClick={() => togglePreset(preset.id)} className={selected ? "relative rounded-lg border border-[#1f4f2a] bg-[#edf7eb] p-4 text-left outline-none ring-[#537c55] focus-visible:ring-2 focus-visible:ring-offset-2" : "relative rounded-lg border border-[#dce4d8] bg-white p-4 text-left outline-none hover:border-[#8eaa8b] focus-visible:ring-2 focus-visible:ring-[#537c55] focus-visible:ring-offset-2"}>
+                      <span className={selected ? "absolute right-3 top-3 flex size-5 items-center justify-center rounded-full bg-[#1f4f2a] text-xs text-white" : "absolute right-3 top-3 size-5 rounded-full border border-[#b8c5b5]"} aria-hidden="true">{selected ? "\u2713" : ""}</span>
+                      <p className="pr-7 text-xs font-semibold uppercase text-[#6b7b67]">{preset.group}</p>
                       <p className="mt-2 font-semibold">{preset.label}</p>
                       <p className="mt-1 text-sm text-[#637063]">{preset.size}</p>
                     </button>
@@ -396,52 +385,133 @@ export default function SellerStudioClient() {
             </div>
           </div>
 
-          <aside className="h-fit rounded-lg border border-[#dce4d8] bg-white p-5 shadow-sm lg:sticky lg:top-5">
-            <h2 className="text-xl font-semibold">Quality-controlled export</h2>
-            <p className="mt-2 text-sm leading-6 text-[#637063]">Preview runs checks on the final generated files. Failed outputs cannot be downloaded.</p>
-            <button type="button" onClick={previewAndValidateOutputs} disabled={previewStatus === "working"} className="mt-5 w-full rounded-md border border-[#1f4f2a] px-4 py-3 text-sm font-semibold text-[#1f4f2a] disabled:opacity-60">
-              {previewStatus === "working" ? "Generating preview..." : "Preview & validate outputs"}
+          <aside className="h-fit rounded-lg border border-[#cad8c7] bg-white p-5 shadow-sm lg:sticky lg:top-5">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6f4f]">Steps 3 and 4</p>
+            <h2 className="mt-1 text-xl font-semibold">Review and export</h2>
+            <p className="mt-2 text-sm leading-6 text-[#637063]">Generate the real files first. Every selected output is checked before download.</p>
+            <ExportChecklist hasFile={Boolean(file)} hasOutputs={selectedPresets.length > 0} preview={outputPreview} />
+            <button type="button" onClick={previewAndValidateOutputs} disabled={previewStatus === "working" || !file || selectedPresets.length === 0} className="mt-5 w-full rounded-md bg-[#1f4f2a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#173d20] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#537c55] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-[#a6b3a4]">
+              {previewStatus === "working" ? "Generating and checking..." : outputPreview ? "Regenerate preview" : "Generate preview"}
             </button>
-            <button type="button" onClick={generateStudioPack} disabled={packStatus === "working" || !canDownload} className="mt-3 w-full rounded-md bg-[#1f4f2a] px-4 py-3 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-[#91a392]">
+            <button type="button" onClick={generateStudioPack} disabled={packStatus === "working" || !canDownload} className="mt-3 w-full rounded-md border border-[#1f4f2a] bg-white px-4 py-3 text-sm font-semibold text-[#1f4f2a] transition hover:bg-[#edf3eb] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#537c55] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:border-[#ccd5ca] disabled:text-[#8a9689] disabled:hover:bg-white">
               {packStatus === "working" ? "Preparing ZIP..." : "Download validated ZIP"}
             </button>
             <StatusMessage status={previewStatus} message={previewMessage} />
             <StatusMessage status={packStatus} message={packMessage} />
             {outputPreview ? <GateSummary summary={outputPreview.summary} /> : null}
             <div className="mt-5 border-t border-[#dce4d8] pt-4 text-sm text-[#637063]">
-              <p>{file ? file.name : "No image selected"}</p>
-              <p className="mt-2">Target fill: {subjectFillPercent}%</p>
-              <p className="mt-2">Uploads and previews are processed temporarily.</p>
+              <p className="truncate font-medium text-[#405040]">{file ? file.name : "Waiting for a product image"}</p>
+              <p className="mt-2">{selectedPresets.length} outputs / {subjectFillPercent}% target fill</p>
             </div>
           </aside>
         </section>
 
         {outputPreview ? <OutputPreviewReport preview={outputPreview} /> : null}
 
-        <section className="my-8 rounded-lg border border-[#dce4d8] bg-white p-5 shadow-sm">
-          <div className="flex flex-wrap items-end justify-between gap-3">
-            <div>
-              <p className="text-sm font-semibold text-[#4f6f4f]">4. Listing copy</p>
-              <h2 className="mt-1 text-2xl font-semibold">Create a clean listing draft</h2>
-            </div>
-            <span className="text-sm text-[#637063]">Template assistant, review facts before publishing</span>
-          </div>
-          <form onSubmit={generateCopy} className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            <TextField label="Brand" value={brand} onChange={setBrand} placeholder="e.g. SBZ" />
-            <TextField label="Category" value={category} onChange={setCategory} placeholder="e.g. Wallet" />
-            <TextField label="Primary feature" value={primaryFeature} onChange={setPrimaryFeature} placeholder="e.g. made with full-grain leather" />
-            <TextField label="Audience" value={audience} onChange={setAudience} placeholder="e.g. men and gift buyers" />
-            <div className="flex flex-wrap items-center gap-3 md:col-span-2 xl:col-span-4">
-              <button type="submit" disabled={copyStatus === "working"} className="rounded-md bg-[#1f4f2a] px-5 py-3 text-sm font-semibold text-white disabled:opacity-60">
-                {copyStatus === "working" ? "Creating..." : "Generate listing draft"}
-              </button>
-              <StatusMessage status={copyStatus} message={copyMessage} compact />
-            </div>
-          </form>
-          {copyResult ? <ListingCopyResult result={copyResult} /> : null}
-        </section>
       </div>
     </main>
+  );
+}
+
+function WorkflowProgress({
+  hasFile,
+  hasPreview,
+  canDownload,
+  exported,
+}: {
+  hasFile: boolean;
+  hasPreview: boolean;
+  canDownload: boolean;
+  exported: boolean;
+}) {
+  const steps = [
+    {
+      label: "Source",
+      detail: "Upload product",
+      status: hasFile ? "complete" : "current",
+    },
+    {
+      label: "Configure",
+      detail: "Set outputs",
+      status: hasPreview ? "complete" : hasFile ? "current" : "upcoming",
+    },
+    {
+      label: "Review",
+      detail: "Check quality",
+      status: canDownload ? "complete" : hasPreview ? "current" : "upcoming",
+    },
+    {
+      label: "Export",
+      detail: "Download ZIP",
+      status: exported ? "complete" : canDownload ? "current" : "upcoming",
+    },
+  ];
+
+  return (
+    <ol aria-label="Seller Studio progress" className="mt-6 grid grid-cols-2 overflow-hidden rounded-lg border border-[#dce4d8] bg-white sm:grid-cols-4">
+      {steps.map((step, index) => {
+        const complete = step.status === "complete";
+        const current = step.status === "current";
+        return (
+          <li key={step.label} aria-current={current ? "step" : undefined} className={`relative flex items-center gap-3 px-3 py-3 sm:px-4 ${index % 2 === 1 ? "border-l border-[#e3e9e1]" : ""} ${index >= 2 ? "border-t border-[#e3e9e1]" : ""} ${index > 0 ? "sm:border-l sm:border-t-0" : ""}`}>
+            <span className={complete ? "flex size-7 shrink-0 items-center justify-center rounded-full bg-[#1f4f2a] text-xs font-semibold text-white" : current ? "flex size-7 shrink-0 items-center justify-center rounded-full border-2 border-[#1f4f2a] bg-white text-xs font-semibold text-[#1f4f2a]" : "flex size-7 shrink-0 items-center justify-center rounded-full border border-[#c7d1c4] bg-[#f6f8f5] text-xs font-semibold text-[#7a8679]"}>
+              {complete ? "\u2713" : index + 1}
+            </span>
+            <span className="min-w-0">
+              <span className={current || complete ? "block text-sm font-semibold text-[#263b29]" : "block text-sm font-semibold text-[#7a8679]"}>{step.label}</span>
+              <span className="block truncate text-xs text-[#6b776a]">{step.detail}</span>
+            </span>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ExportChecklist({
+  hasFile,
+  hasOutputs,
+  preview,
+}: {
+  hasFile: boolean;
+  hasOutputs: boolean;
+  preview: PreviewResult | null;
+}) {
+  const qualityReady = Boolean(preview?.summary.can_download);
+  const qualityDetail = preview
+    ? qualityReady
+      ? `${preview.summary.pass} pass, ${preview.summary.warning} review`
+      : `${preview.summary.fail} blocked output${preview.summary.fail === 1 ? "" : "s"}`
+    : "Preview not generated";
+
+  return (
+    <div className="mt-5 divide-y divide-[#e3e9e1] rounded-lg border border-[#e0e7de] bg-[#f8faf7] px-3">
+      <ChecklistItem label="Product source" detail={hasFile ? "Image ready" : "Upload required"} complete={hasFile} />
+      <ChecklistItem label="Output selection" detail={hasOutputs ? "Presets selected" : "Choose at least one"} complete={hasOutputs} />
+      <ChecklistItem label="Quality gate" detail={qualityDetail} complete={qualityReady} warning={Boolean(preview && !qualityReady)} />
+    </div>
+  );
+}
+
+function ChecklistItem({
+  label,
+  detail,
+  complete,
+  warning = false,
+}: {
+  label: string;
+  detail: string;
+  complete: boolean;
+  warning?: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-3 text-sm">
+      <span className="font-medium text-[#405040]">{label}</span>
+      <span className={complete ? "flex items-center gap-1.5 text-xs font-semibold text-[#276233]" : warning ? "flex items-center gap-1.5 text-xs font-semibold text-[#9a3412]" : "flex items-center gap-1.5 text-xs font-medium text-[#7a8679]"}>
+        <span className={complete ? "size-2 rounded-full bg-[#3e7b47]" : warning ? "size-2 rounded-full bg-[#c2410c]" : "size-2 rounded-full bg-[#b8c4b5]"} aria-hidden="true" />
+        {detail}
+      </span>
+    </div>
   );
 }
 
@@ -457,11 +527,12 @@ function GateSummary({ summary }: { summary: PreviewResult["summary"] }) {
 
 function OutputPreviewReport({ preview }: { preview: PreviewResult }) {
   return (
-    <section className="mt-8">
+    <section id="output-review" className="mt-8" aria-labelledby="output-review-heading">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-sm font-semibold text-[#4f6f4f]">3. Final output preview</p>
-          <h2 className="mt-1 text-2xl font-semibold">Validated marketplace files</h2>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#4f6f4f]">Step 3 - Review</p>
+          <h2 id="output-review-heading" className="mt-1 text-2xl font-semibold">Check the generated files</h2>
+          <p className="mt-2 text-sm text-[#637063]">Review warnings before exporting. Failed files keep the ZIP locked.</p>
         </div>
         <span className={preview.summary.can_download ? "rounded-full bg-[#1f4f2a] px-4 py-2 text-sm font-semibold text-white" : "rounded-full bg-[#9a3412] px-4 py-2 text-sm font-semibold text-white"}>
           {preview.summary.can_download ? "ZIP unlocked" : "ZIP blocked"}
@@ -475,7 +546,7 @@ function OutputPreviewReport({ preview }: { preview: PreviewResult }) {
             </div>
             <div className="p-4">
               <div className="flex items-start justify-between gap-3">
-                <div><h3 className="font-semibold">{output.label}</h3><p className="mt-1 text-xs text-[#637063]">{output.output_width} x {output.output_height} {output.format} · {output.output_size_kb} KB</p></div>
+                <div><h3 className="font-semibold">{output.label}</h3><p className="mt-1 text-xs text-[#637063]">{output.output_width} x {output.output_height} / {output.format} / {output.output_size_kb} KB</p></div>
                 <StatusBadge status={output.quality_control.status} />
               </div>
               <p className="mt-3 text-sm leading-6 text-[#637063]">{output.quality_control.summary}</p>
@@ -484,13 +555,21 @@ function OutputPreviewReport({ preview }: { preview: PreviewResult }) {
                 <span className="rounded-full bg-[#edf3eb] px-2 py-1">Score {output.quality_control.score}/100</span>
                 <span className="rounded-full bg-[#edf3eb] px-2 py-1">{output.cleanup_method.replaceAll("_", " ")}</span>
               </div>
-              <ul className="mt-4 space-y-2 border-t border-[#dce4d8] pt-3 text-xs leading-5">
-                {output.quality_control.checks.map((check) => (
-                  <li key={`${check.label}-${check.detail}`} className={check.status === "pass" ? "text-[#276233]" : check.status === "warning" ? "text-[#725d12]" : "text-[#9a3412]"}>
-                    <strong>{check.label}:</strong> {check.detail}
-                  </li>
-                ))}
-              </ul>
+              <details className="group mt-4 border-t border-[#dce4d8] pt-3" open={output.quality_control.status !== "pass"}>
+                <summary className="cursor-pointer list-none text-xs font-semibold text-[#405040] outline-none focus-visible:ring-2 focus-visible:ring-[#537c55]">
+                  <span className="flex items-center justify-between gap-3">
+                    Quality details
+                    <span className="text-[#718070] transition group-open:rotate-180" aria-hidden="true">v</span>
+                  </span>
+                </summary>
+                <ul className="mt-3 space-y-2 text-xs leading-5">
+                  {output.quality_control.checks.map((check) => (
+                    <li key={`${check.label}-${check.detail}`} className={check.status === "pass" ? "text-[#276233]" : check.status === "warning" ? "text-[#725d12]" : "text-[#9a3412]"}>
+                      <strong>{check.label}:</strong> {check.detail}
+                    </li>
+                  ))}
+                </ul>
+              </details>
             </div>
           </article>
         ))}
@@ -501,7 +580,7 @@ function OutputPreviewReport({ preview }: { preview: PreviewResult }) {
 
 function OptionToggle({ label, detail, checked, onChange }: { label: string; detail: string; checked: boolean; onChange: (value: boolean) => void }) {
   return (
-    <label className="flex cursor-pointer gap-3 rounded-lg border border-[#dce4d8] p-3">
+    <label className={checked ? "flex cursor-pointer gap-3 rounded-lg border border-[#b8cbb5] bg-[#f7faf6] p-3" : "flex cursor-pointer gap-3 rounded-lg border border-[#dce4d8] bg-white p-3"}>
       <input type="checkbox" checked={checked} onChange={(event) => onChange(event.target.checked)} className="mt-1 size-4 accent-[#1f4f2a]" />
       <span><span className="block text-sm font-semibold">{label}</span><span className="mt-1 block text-xs leading-5 text-[#637063]">{detail}</span></span>
     </label>
@@ -517,25 +596,6 @@ function StatusMessage({ status, message, compact = false }: { status: Status; m
 function StatusBadge({ status }: { status: CheckStatus }) {
   const styles = status === "pass" ? "bg-[#e5f4e5] text-[#276233]" : status === "warning" ? "bg-[#fff4cc] text-[#725d12]" : "bg-[#fff0ec] text-[#9a3412]";
   return <span className={`rounded-full px-2 py-1 text-xs font-semibold capitalize ${styles}`}>{status}</span>;
-}
-
-function TextField({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {
-  return <label className="text-sm font-medium">{label}<input value={value} onChange={(event) => onChange(event.target.value)} placeholder={placeholder} className="mt-2 w-full rounded-md border border-[#cbd8c7] bg-[#fbfcfa] px-3 py-2 outline-none ring-[#537c55] focus:ring-2" /></label>;
-}
-
-function ListingCopyResult({ result }: { result: ListingCopy }) {
-  return (
-    <div className="mt-6 grid gap-4 border-t border-[#dce4d8] pt-5 lg:grid-cols-2">
-      <CopyBlock title="Title options" lines={result.titles} />
-      <CopyBlock title="Selling bullets" lines={result.bullets} />
-      <CopyBlock title="Description" lines={[result.description]} />
-      <CopyBlock title="Alt text & WhatsApp" lines={[result.alt_text, result.whatsapp_message]} />
-    </div>
-  );
-}
-
-function CopyBlock({ title, lines }: { title: string; lines: string[] }) {
-  return <article className="rounded-lg bg-[#f6f8f5] p-4"><h3 className="font-semibold">{title}</h3><div className="mt-3 space-y-2 text-sm leading-6 text-[#314632]">{lines.map((line) => <p key={line}>{line}</p>)}</div></article>;
 }
 
 function readErrorDetail(data: unknown, fallback: string) {

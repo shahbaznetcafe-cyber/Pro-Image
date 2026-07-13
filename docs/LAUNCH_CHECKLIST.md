@@ -7,6 +7,8 @@ Use this before sharing SBZ SellImage Pro with real sellers.
 - Supabase project created.
 - `docs/supabase-schema.sql` executed.
 - Supabase Auth email settings tested.
+- Supabase Auth password policy requires at least 8 characters with digits,
+  lowercase letters, and uppercase letters.
 - Owner account created through `/login`.
 - Owner account promoted once with `docs/supabase-admin.sql`.
 - `/dashboard/admin/payments` is visible only for the owner account.
@@ -24,7 +26,7 @@ Use this before sharing SBZ SellImage Pro with real sellers.
 
 ## Manual Payment Launch
 
-- JazzCash/Easypaisa/bank instructions written in the billing page copy.
+- PayPal/Wise/bank transfer instructions written in the billing page copy.
 - Admin knows how to use `docs/supabase-admin.sql`.
 - Test user can submit a payment request.
 - Admin can approve request and plan changes appear in dashboard.

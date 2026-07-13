@@ -44,6 +44,11 @@ def _fill_mask_holes(mask: Image.Image) -> Image.Image:
     return ImageChops.lighter(mask, outside)
 
 
+def _visible_bounds(mask: Image.Image, threshold: int = 16) -> tuple[int, int, int, int] | None:
+    """Ignore the faint antialiasing pixels that should not drive the crop."""
+    return mask.point(lambda value: 255 if value >= threshold else 0).getbbox()
+
+
 def _largest_central_component(mask: Image.Image) -> Image.Image | None:
     width, height = mask.size
     pixels = bytearray(1 if value >= 128 else 0 for value in mask.getdata())
@@ -115,6 +120,26 @@ def _largest_central_component(mask: Image.Image) -> Image.Image | None:
     return Image.frombytes("L", (width, height), bytes(output))
 
 
+def _retain_central_subject(mask: Image.Image) -> Image.Image:
+    """Drop detached marks while leaving a small, soft safety envelope for the subject."""
+    preview = mask.copy()
+    preview.thumbnail((720, 720), Image.Resampling.LANCZOS)
+    component = _largest_central_component(preview.point(lambda value: 255 if value >= 96 else 0))
+    if component is None:
+        return mask
+
+    component_pixels = sum(1 for value in component.getdata() if value)
+    coverage = component_pixels / (component.width * component.height)
+    if not 0.002 <= coverage <= 0.72:
+        return mask
+
+    # Keep nearby anti-aliased edges and small connected product details, while
+    # excluding remote logos, checkerboard remnants, and watermarks.
+    envelope = component.filter(ImageFilter.MaxFilter(17)).filter(ImageFilter.GaussianBlur(1.2))
+    envelope = envelope.resize(mask.size, Image.Resampling.LANCZOS)
+    return ImageChops.multiply(mask, envelope)
+
+
 def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
     preview = image.convert("RGBA")
     preview.thumbnail((720, 720), Image.Resampling.LANCZOS)
@@ -143,10 +168,9 @@ def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
     component = _fill_mask_holes(component).filter(ImageFilter.GaussianBlur(0.8))
     central_mask = component.resize(image.size, Image.Resampling.LANCZOS)
 
-    # Saturation-only segmentation drops white product parts on checkerboard
-    # inputs. Recover neutral product pixels with a background-aware mask. Dark
-    # checkerboards need a brightness mask because their two tiles differ too
-    # much from the average corner color to use a global color distance.
+    # Saturation-only segmentation drops white product details. Recover those
+    # details only inside a subject-shaped envelope; a broad rectangle can turn
+    # baked checkerboard tiles around the product back into foreground.
     background = _estimate_background(image)
     background_luminance = sum(background) / 3
     if background_luminance < 160:
@@ -155,25 +179,28 @@ def _neutral_background_subject_mask(image: Image.Image) -> Image.Image | None:
             lambda value: 255 if value >= threshold else 0
         )
     else:
-        recovery_mask = _corner_color_subject_mask(image).point(
-            lambda value: 255 if value >= 20 else 0
-        )
-    bounds = central_mask.getbbox()
-    if bounds:
-        envelope = Image.new("L", image.size, 0)
-        envelope_draw = ImageDraw.Draw(envelope)
-        pad_x = round(image.width * 0.28)
-        pad_y = round(image.height * 0.55)
-        envelope_draw.rectangle(
-            (
-                max(0, bounds[0] - pad_x),
-                max(0, bounds[1] - pad_y),
-                min(image.width, bounds[2] + pad_x),
-                min(image.height, bounds[3] + pad_y),
-            ),
-            fill=255,
-        )
-        recovery_mask = ImageChops.multiply(recovery_mask, envelope)
+        # Light checkerboards commonly peak around 235-242. Requiring an almost
+        # white value preserves eyes, labels, and white product parts without
+        # preserving the grey checker tiles themselves.
+        threshold = max(246, min(252, round(background_luminance + 10)))
+        luminance = image.convert("L")
+        saturation_full = image.convert("HSV").split()[1]
+        bright = luminance.point(lambda value: 255 if value >= threshold else 0)
+        neutral = saturation_full.point(lambda value: 255 if value <= 40 else 0)
+        recovery_mask = ImageChops.multiply(bright, neutral)
+
+    recovery_envelope = component.filter(ImageFilter.MaxFilter(25)).filter(
+        ImageFilter.GaussianBlur(1.0)
+    )
+    recovery_envelope = recovery_envelope.resize(image.size, Image.Resampling.LANCZOS)
+    recovery_mask = ImageChops.multiply(recovery_mask, recovery_envelope)
+
+    # Internal neutral details are recovered by hole filling. The envelope only
+    # needs to extend slightly beyond the colored seed for attached white parts.
+    recovery_mask = ImageChops.multiply(
+        recovery_mask,
+        central_mask.filter(ImageFilter.MaxFilter(15)),
+    )
     combined = ImageChops.lighter(central_mask, recovery_mask)
     return combined.filter(ImageFilter.GaussianBlur(0.8))
 
@@ -193,7 +220,8 @@ def _corner_color_subject_mask(image: Image.Image) -> Image.Image:
         return round((value - 12) / 46 * 255)
 
     mask = distance.point(alpha_value).filter(ImageFilter.GaussianBlur(0.7))
-    return ImageChops.multiply(mask, rgba.getchannel("A"))
+    mask = ImageChops.multiply(mask, rgba.getchannel("A"))
+    return _retain_central_subject(mask)
 
 
 def _subject_mask(image: Image.Image) -> tuple[Image.Image, str]:
@@ -219,13 +247,19 @@ def _prepare_layer(image: Image.Image, options: ProcessingOptions) -> tuple[Imag
         layer.putalpha(mask)
 
     if options.smart_center and mask is not None:
-        bounds = mask.getbbox()
+        bounds = _visible_bounds(mask)
         if bounds:
-            padding = max(4, round(min(layer.size) * 0.025))
-            left = max(0, bounds[0] - padding)
-            top = max(0, bounds[1] - padding)
-            right = min(layer.width, bounds[2] + padding)
-            bottom = min(layer.height, bounds[3] + padding)
+            subject_width = bounds[2] - bounds[0]
+            subject_height = bounds[3] - bounds[1]
+            # A compact crop gives marketplace outputs enough breathing room
+            # without reducing the requested product fill by several percent.
+            padding_x = max(4, round(subject_width * 0.03))
+            padding_top = max(4, round(subject_height * 0.03))
+            padding_bottom = max(4, round(subject_height * 0.05))
+            left = max(0, bounds[0] - padding_x)
+            top = max(0, bounds[1] - padding_top)
+            right = min(layer.width, bounds[2] + padding_x)
+            bottom = min(layer.height, bounds[3] + padding_bottom)
             layer = layer.crop((left, top, right, bottom))
 
     return layer, cleanup_method
@@ -261,11 +295,18 @@ def _fit_on_canvas(
     options: ProcessingOptions,
 ) -> tuple[Image.Image, dict[str, object]]:
     layer, cleanup_method = _prepare_layer(image, options)
-    requested_fill = max(65, min(92, options.subject_fill_percent))
+    subject_bounds = _visible_bounds(layer.getchannel("A"))
+    if subject_bounds is None:
+        subject_bounds = (0, 0, layer.width, layer.height)
+    subject_width = max(1, subject_bounds[2] - subject_bounds[0])
+    subject_height = max(1, subject_bounds[3] - subject_bounds[1])
+    requested_fill = max(65, min(95, options.subject_fill_percent))
     fill_ratio = requested_fill / 100 if options.smart_center else 1.0
     target_width = max(1, round(preset.width * fill_ratio))
     target_height = max(1, round(preset.height * fill_ratio))
-    scale = min(target_width / layer.width, target_height / layer.height)
+    # Scale against visible product bounds, rather than transparent padding.
+    # This keeps the slider honest and avoids small, under-filled products.
+    scale = min(target_width / subject_width, target_height / subject_height)
     scaled_size = (
         max(1, round(layer.width * scale)),
         max(1, round(layer.height * scale)),
@@ -277,8 +318,13 @@ def _fit_on_canvas(
 
     background = (0, 0, 0, 0) if preset.transparent else (*preset.background, 255)
     canvas = Image.new("RGBA", (preset.width, preset.height), background)
-    x = (preset.width - layer.width) // 2
-    y = (preset.height - layer.height) // 2
+    placed_bounds = _visible_bounds(layer.getchannel("A"))
+    if placed_bounds is None:
+        placed_bounds = (0, 0, layer.width, layer.height)
+    placed_width = placed_bounds[2] - placed_bounds[0]
+    placed_height = placed_bounds[3] - placed_bounds[1]
+    x = round(preset.width / 2 - (placed_bounds[0] + placed_width / 2))
+    y = round(preset.height / 2 - (placed_bounds[1] + placed_height / 2))
 
     if options.add_shadow and options.cleanup_background and not preset.transparent:
         _add_shadow(canvas, layer, x, y)
@@ -287,7 +333,7 @@ def _fit_on_canvas(
     output = canvas if preset.transparent else canvas.convert("RGB")
     return output, {
         "cleanup_method": cleanup_method,
-        "subject_fill_percent": round(max(layer.width / preset.width, layer.height / preset.height) * 100),
+        "subject_fill_percent": round(max(placed_width / preset.width, placed_height / preset.height) * 100),
     }
 
 
@@ -313,6 +359,15 @@ def process_image(
 
     output.save(buffer, preset.format, **save_kwargs)
     data = buffer.getvalue()
+
+    if preset.max_file_bytes and len(data) > preset.max_file_bytes and preset.format in {"JPEG", "WEBP"}:
+        for quality in range(preset.quality - 5, 54, -5):
+            buffer = BytesIO()
+            save_kwargs["quality"] = quality
+            output.save(buffer, preset.format, **save_kwargs)
+            data = buffer.getvalue()
+            if len(data) <= preset.max_file_bytes:
+                break
 
     return data, {
         "preset_id": preset.id,

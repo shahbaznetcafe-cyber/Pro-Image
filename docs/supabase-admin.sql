@@ -1,10 +1,10 @@
 -- SBZ SellImage Pro - one-time owner bootstrap
--- First create your account through /login, then replace the email and run once.
+-- First create and verify this owner account through /login, then run once.
 
 update public.seller_profiles
 set is_admin = true, updated_at = now()
 where id = (
-  select id from auth.users where email = 'owner@example.com'
+  select id from auth.users where lower(email) = lower('shahbaznetcafe@gmail.com')
 );
 
 -- Confirm the owner account. This query should return exactly one row.

@@ -21,11 +21,14 @@ function LoginForm() {
   const [mode, setMode] = useState<"login" | "signup">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [businessName, setBusinessName] = useState("");
   const [status, setStatus] = useState<"idle" | "working" | "error" | "success">(
     "idle",
   );
   const [message, setMessage] = useState("");
+  const passwordChecks = getPasswordChecks(password);
+  const isStrongPassword = passwordChecks.every((check) => check.passed);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -33,6 +36,14 @@ function LoginForm() {
     if (!isSupabaseConfigured()) {
       setStatus("error");
       setMessage("Add Supabase URL and publishable key in frontend/.env.local.");
+      return;
+    }
+
+    if (mode === "signup" && !isStrongPassword) {
+      setStatus("error");
+      setMessage(
+        "Password must be at least 8 characters and include a lowercase letter, an uppercase letter, and a digit.",
+      );
       return;
     }
 
@@ -91,7 +102,7 @@ function LoginForm() {
           </h1>
           <p className="mt-5 max-w-xl text-base leading-7 text-[#637063]">
             Phase 2 adds the SaaS layer: account access, plan limits, job
-            history metadata, and manual payment requests for Pakistan launch.
+            history metadata, and international manual payment requests.
           </p>
         </section>
 
@@ -150,21 +161,51 @@ function LoginForm() {
             </label>
 
             <label className="block">
-              <span className="text-sm font-medium">Password</span>
+              <span className="flex items-center justify-between gap-3 text-sm font-medium">
+                Password
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((current) => !current)}
+                  className="text-xs font-semibold text-[#315c39] hover:text-[#173d20]"
+                >
+                  {showPassword ? "Hide" : "Show"}
+                </button>
+              </span>
               <input
-                type="password"
+                type={showPassword ? "text" : "password"}
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 required
-                minLength={6}
+                minLength={mode === "signup" ? 8 : 1}
+                autoComplete={mode === "signup" ? "new-password" : "current-password"}
+                aria-describedby={mode === "signup" ? "password-requirements" : undefined}
                 className="mt-2 w-full rounded-md border border-[#cbd8c7] px-3 py-2 text-sm outline-none ring-[#537c55] focus:ring-2"
-                placeholder="Minimum 6 characters"
+                placeholder={mode === "signup" ? "Create a strong password" : "Enter your password"}
               />
             </label>
+
+            {mode === "signup" ? (
+              <div id="password-requirements" className="rounded-md border border-[#dce4d8] bg-[#f8faf7] p-3" aria-live="polite">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-[#405040]">Password strength</p>
+                  <span className={isStrongPassword ? "text-xs font-semibold text-[#276233]" : "text-xs font-semibold text-[#7b6518]"}>
+                    {isStrongPassword ? "Strong" : "Requirements pending"}
+                  </span>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
+                  {passwordChecks.map((check) => (
+                    <span key={check.label} className={check.passed ? "flex items-center gap-2 text-[#276233]" : "flex items-center gap-2 text-[#6b776a]"}>
+                      <span aria-hidden="true" className={check.passed ? "size-1.5 rounded-full bg-[#3e7b47]" : "size-1.5 rounded-full bg-[#b8c4b5]"} />
+                      {check.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </div>
 
           <button
-            disabled={status === "working"}
+            disabled={status === "working" || (mode === "signup" && !isStrongPassword)}
             className="mt-5 w-full rounded-md bg-[#1f4f2a] px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#173d20] disabled:cursor-not-allowed disabled:opacity-70"
           >
             {status === "working"
@@ -189,6 +230,15 @@ function LoginForm() {
       </div>
     </main>
   );
+}
+
+function getPasswordChecks(password: string) {
+  return [
+    { label: "8+ characters", passed: password.length >= 8 },
+    { label: "Lowercase letter", passed: /[a-z]/.test(password) },
+    { label: "Uppercase letter", passed: /[A-Z]/.test(password) },
+    { label: "Digit", passed: /\d/.test(password) },
+  ];
 }
 
 function LoginShell() {

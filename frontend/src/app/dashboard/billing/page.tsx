@@ -56,8 +56,8 @@ export default async function BillingPage() {
       <div className="rounded-lg border border-[#dce4d8] bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold">Manual Payment Activation</h2>
         <p className="mt-2 text-sm leading-6 text-[#637063]">
-          Pakistan launch ke liye JazzCash, Easypaisa, ya bank transfer request
-          submit karen. Admin payment verify karke plan active karega.
+          International launch ke liye PayPal, Wise, ya bank transfer payment
+          reference submit karen. Admin payment verify karke plan active karega.
         </p>
         <div className="mt-5">
           <ManualPaymentForm userId={user.id} disabled={hasPendingRequest} />

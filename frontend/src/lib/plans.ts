@@ -13,7 +13,7 @@ export const PLANS: Plan[] = [
   {
     id: "free",
     name: "Free",
-    price: "Rs. 0",
+    price: "$0",
     imagesPerMonth: 150,
     badge: "5 images/day",
     features: ["Single image upload", "Basic resize/compress", "Watermark"],
@@ -21,26 +21,26 @@ export const PLANS: Plan[] = [
   {
     id: "starter",
     name: "Starter",
-    price: "Rs. 799/mo",
-    imagesPerMonth: 500,
+    price: "$6.99/mo",
+    imagesPerMonth: 300,
     badge: "ZIP download",
-    features: ["500 images/month", "No watermark", "Seller ZIP packs"],
+    features: ["300 source images/month", "No watermark", "Seller ZIP packs"],
   },
   {
     id: "pro",
     name: "Pro",
-    price: "Rs. 1499/mo",
-    imagesPerMonth: 3000,
+    price: "$14.99/mo",
+    imagesPerMonth: 1500,
     badge: "Best for sellers",
     features: ["Batch processing", "All packs", "Priority workflow"],
   },
   {
     id: "agency",
     name: "Agency",
-    price: "Rs. 2999/mo",
-    imagesPerMonth: 10000,
+    price: "$34.99/mo",
+    imagesPerMonth: 5000,
     badge: "Client work",
-    features: ["Branding", "High limits", "Team features later"],
+    features: ["Branding", "High-volume processing", "Saved client presets"],
   },
 ];
 

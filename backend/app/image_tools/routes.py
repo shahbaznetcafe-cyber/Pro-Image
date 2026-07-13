@@ -9,6 +9,7 @@ from fastapi import APIRouter, BackgroundTasks, File, Form, Header, HTTPExceptio
 from fastapi.responses import FileResponse
 
 from app.image_tools.analyzer import analyze_image
+from app.image_tools.connectors import CONNECTORS, connector_status, list_connector_statuses
 from app.image_tools.listing_copy import generate_listing_copy
 from app.image_tools.output_quality import assess_output, create_preview_data_url
 from app.image_tools.presets import PRESETS, ImagePreset, get_presets
@@ -29,22 +30,13 @@ class ImageInput(TypedDict):
 
 
 @router.get("/presets")
-def list_presets() -> dict[str, list[dict[str, int | str | bool]]]:
-    return {
-        "presets": [
-            {
-                "id": preset.id,
-                "label": preset.label,
-                "width": preset.width,
-                "height": preset.height,
-                "format": preset.format,
-                "filename": preset.filename,
-                "group": preset.group,
-                "transparent": preset.transparent,
-            }
-            for preset in PRESETS.values()
-        ]
-    }
+def list_presets() -> dict[str, list[dict[str, object]]]:
+    return {"presets": [asdict(preset) for preset in PRESETS.values()]}
+
+
+@router.get("/connectors")
+def list_connectors() -> dict[str, list[dict[str, object]]]:
+    return {"connectors": list_connector_statuses()}
 
 
 @router.post("/generate-seller-pack")
@@ -57,7 +49,7 @@ async def generate_seller_pack(
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
     polish_output: bool = Form(default=True),
-    subject_fill_percent: int = Form(default=84, ge=65, le=92),
+    subject_fill_percent: int = Form(default=85, ge=65, le=95),
     strict_quality: bool = Form(default=False),
     authorization: str | None = Header(default=None),
 ) -> FileResponse:
@@ -123,7 +115,7 @@ async def generate_batch_seller_pack(
     smart_center: bool = Form(default=False),
     add_shadow: bool = Form(default=False),
     polish_output: bool = Form(default=True),
-    subject_fill_percent: int = Form(default=84, ge=65, le=92),
+    subject_fill_percent: int = Form(default=85, ge=65, le=95),
     strict_quality: bool = Form(default=False),
     authorization: str | None = Header(default=None),
 ) -> FileResponse:
@@ -246,7 +238,7 @@ async def preview_seller_studio(
     smart_center: bool = Form(default=True),
     add_shadow: bool = Form(default=False),
     polish_output: bool = Form(default=True),
-    subject_fill_percent: int = Form(default=84, ge=65, le=92),
+    subject_fill_percent: int = Form(default=85, ge=65, le=95),
 ) -> dict[str, object]:
     selected_ids = [item.strip() for item in preset_ids.split(",") if item.strip()]
     presets = get_presets(selected_ids)
@@ -331,6 +323,21 @@ def _build_zip(
         "quality_summary": quality_summary,
         "products": [],
     }
+    marketplace_manifest = {
+        "schema_version": "1.0",
+        "generated_by": "SBZ SellImage Pro",
+        "project_name": project_slug,
+        "presets": [
+            {
+                **asdict(preset),
+                "regions": list(preset.regions),
+                "connector": connector_status(CONNECTORS[preset.connector_id])
+                if preset.connector_id and preset.connector_id in CONNECTORS
+                else None,
+            }
+            for preset in presets
+        ],
+    }
 
     with zipfile.ZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for image_input in image_inputs:
@@ -369,6 +376,10 @@ def _build_zip(
         archive.writestr(
             f"{project_slug}/report.json",
             json.dumps(report, indent=2),
+        )
+        archive.writestr(
+            f"{project_slug}/marketplace-manifest.json",
+            json.dumps(marketplace_manifest, indent=2),
         )
 
     if strict_quality and failed_outputs:
