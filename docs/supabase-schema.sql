@@ -254,6 +254,60 @@ $$;
 -- processing starts so users cannot release or rewrite their own usage records.
 drop function if exists public.seller_complete_job(uuid, integer, integer, text);
 
+-- Quota refund for undelivered work (e.g. a strict-quality block where the user
+-- receives no ZIP). Deliberately NOT gated on auth.uid(): it is authorised by a
+-- server-held secret, so a client cannot un-charge its own *delivered* packs.
+-- Only the backend, which knows a job produced no deliverable, holds the secret.
+-- Flipping 'consumed' -> 'released' removes the row from the monthly usage sum.
+create table if not exists private.seller_release_secret (
+  id boolean primary key default true check (id),
+  secret text not null
+);
+-- Set once with a long random value that matches the backend SELLER_RELEASE_SECRET:
+--   insert into private.seller_release_secret (secret) values ('<long-random-secret>')
+--   on conflict (id) do update set secret = excluded.secret;
+
+create or replace function public.seller_release_usage(
+  p_job_id uuid,
+  p_secret text
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_expected text;
+  v_user_id uuid;
+begin
+  select secret into v_expected from private.seller_release_secret where id = true;
+  if v_expected is null or p_secret is null or p_secret <> v_expected then
+    raise exception 'RELEASE_NOT_ALLOWED';
+  end if;
+
+  update public.seller_usage_logs
+  set status = 'released'
+  where job_id = p_job_id and status = 'consumed'
+  returning user_id into v_user_id;
+
+  if v_user_id is null then
+    -- Unknown job or already released: idempotent no-op.
+    return jsonb_build_object('job_id', p_job_id, 'released', false);
+  end if;
+
+  update public.seller_image_jobs
+  set status = 'failed', completed_at = now()
+  where id = p_job_id;
+
+  return jsonb_build_object('job_id', p_job_id, 'released', true);
+end;
+$$;
+
+revoke all on function public.seller_release_usage(uuid, text) from public;
+-- anon is required because the arq worker calls this with the publishable key;
+-- the shared secret is the actual gate, not the caller's role.
+grant execute on function public.seller_release_usage(uuid, text) to anon, authenticated;
+
 create or replace function public.seller_approve_payment_request(
   p_request_id uuid,
   p_admin_note text default null

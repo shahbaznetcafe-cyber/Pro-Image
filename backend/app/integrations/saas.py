@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from dataclasses import dataclass
 from typing import Any
 
@@ -6,6 +7,8 @@ import httpx
 from fastapi import HTTPException, status
 
 from app.core.config import get_settings
+
+logger = logging.getLogger("sbz.saas")
 
 
 REQUIRED_SELLER_OBJECTS = (
@@ -126,6 +129,30 @@ async def reserve_usage(
     )
 
 
+async def release_usage(job_id: str, access_token: str | None = None) -> bool:
+    """Refund a reserved image (consumed -> released) for a blocked job.
+
+    Best-effort: never raises into the request path. Only works when a server
+    release secret is configured, which keeps this non-abusable — clients cannot
+    un-charge their own delivered packs because they do not hold the secret.
+    """
+    settings = get_settings()
+    if not settings.saas_auth_enabled or not settings.seller_release_secret:
+        return False
+
+    try:
+        data = await _call_rpc(
+            "seller_release_usage",
+            access_token,
+            {"p_job_id": job_id, "p_secret": settings.seller_release_secret},
+        )
+    except HTTPException as error:
+        logger.warning("Quota refund failed for job %s: %s", job_id, error.detail)
+        return False
+
+    return bool(isinstance(data, dict) and data.get("released"))
+
+
 def quota_headers(reservation: UsageReservation) -> dict[str, str]:
     if reservation.plan == "development":
         return {"X-SBZ-Plan": "development"}
@@ -152,13 +179,14 @@ def _read_bearer_token(authorization: str | None) -> str:
     return token
 
 
-async def _call_rpc(name: str, access_token: str, payload: dict[str, Any]) -> Any:
+async def _call_rpc(name: str, access_token: str | None, payload: dict[str, Any]) -> Any:
     settings = get_settings()
     headers = {
         "apikey": settings.supabase_publishable_key,
-        "Authorization": f"Bearer {access_token}",
         "Content-Type": "application/json",
     }
+    if access_token:
+        headers["Authorization"] = f"Bearer {access_token}"
 
     try:
         async with httpx.AsyncClient(timeout=12.0) as client:

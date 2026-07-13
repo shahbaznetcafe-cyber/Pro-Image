@@ -38,6 +38,10 @@ const DEFAULT_SELECTED = [
   "website_webp",
 ];
 
+// Hard upper bound accepted by the backend. The effective per-batch limit is
+// smaller and plan-specific; the server enforces it and returns a clear message.
+const MAX_BATCH_IMAGES = 100;
+
 
 export default function BatchGeneratorPage() {
   const [files, setFiles] = useState<File[]>([]);
@@ -74,7 +78,7 @@ export default function BatchGeneratorPage() {
   );
   const fileSummary = useMemo(() => {
     if (files.length === 0) {
-      return "JPG, PNG, or WebP. Batch limit: 30 images.";
+      return "JPG, PNG, or WebP. Up to 100 per batch (your plan sets the limit).";
     }
 
     if (files.length === 1) {
@@ -149,9 +153,9 @@ export default function BatchGeneratorPage() {
       return;
     }
 
-    if (files.length > 30) {
+    if (files.length > MAX_BATCH_IMAGES) {
       setStatus("error");
-      setMessage("Batch limit is 30 images for this MVP.");
+      setMessage(`You can upload up to ${MAX_BATCH_IMAGES} images at once.`);
       return;
     }
 

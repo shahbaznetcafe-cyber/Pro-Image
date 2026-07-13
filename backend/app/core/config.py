@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     )
     supabase_url: str = ""
     supabase_publishable_key: str = ""
+    # Server-held secret that authorises quota refunds (seller_release_usage).
+    # Without it, a strict-quality block on a batch still consumes quota.
+    seller_release_secret: str = ""
     # Requests/minute per client IP for public, unauthenticated CPU-heavy
     # endpoints. 0 disables the limiter.
     public_rate_limit_per_minute: int = 20
@@ -63,7 +66,7 @@ class Settings(BaseSettings):
     def _strip_trailing_slash(cls, value: object) -> object:
         return value.rstrip("/") if isinstance(value, str) else value
 
-    @field_validator("redis_url", "sentry_dsn", mode="before")
+    @field_validator("redis_url", "sentry_dsn", "seller_release_secret", mode="before")
     @classmethod
     def _strip(cls, value: object) -> object:
         return value.strip() if isinstance(value, str) else value

@@ -32,7 +32,7 @@ from app.image_tools.packager import ImageInput, StrictQualityBlocked, build_sel
 from app.image_tools.presets import PRESETS, ImagePreset, get_presets
 from app.image_tools.processor import ProcessingOptions, process_image
 from app.image_tools.security import read_and_validate_upload
-from app.integrations.saas import quota_headers, reserve_usage
+from app.integrations.saas import quota_headers, release_usage, reserve_usage
 from app.utils.filenames import safe_product_name
 
 router = APIRouter(prefix="/tools", tags=["image tools"])
@@ -191,20 +191,27 @@ async def generate_batch_seller_pack(
         expected_output_count=len(image_inputs) * len(presets),
     )
 
-    zip_path, report = await run_in_threadpool(
-        _build_zip,
-        project_slug=project_slug,
-        image_inputs=image_inputs,
-        presets=presets,
-        options=ProcessingOptions(
-            cleanup_background=cleanup_background,
-            smart_center=smart_center,
-            add_shadow=add_shadow,
-            polish_output=polish_output,
-            subject_fill_percent=subject_fill_percent,
-        ),
-        strict_quality=strict_quality,
-    )
+    try:
+        zip_path, report = await run_in_threadpool(
+            _build_zip,
+            project_slug=project_slug,
+            image_inputs=image_inputs,
+            presets=presets,
+            options=ProcessingOptions(
+                cleanup_background=cleanup_background,
+                smart_center=smart_center,
+                add_shadow=add_shadow,
+                polish_output=polish_output,
+                subject_fill_percent=subject_fill_percent,
+            ),
+            strict_quality=strict_quality,
+        )
+    except HTTPException as exc:
+        # A strict-quality block produced no deliverable, so refund the reserved
+        # usage instead of charging the user for an undelivered pack.
+        if exc.status_code == 422 and reservation.job_id is not None:
+            await release_usage(reservation.job_id, reservation.access_token)
+        raise
 
     background_tasks.add_task(zip_path.unlink, missing_ok=True)
 
@@ -240,6 +247,7 @@ def _persist_job_inputs(
     preset_ids: list[str],
     options: ProcessingOptions,
     strict_quality: bool,
+    reservation_job_id: str | None,
 ) -> None:
     """Write uploads + job spec to the shared job directory (runs off-loop)."""
     inputs_path = q.input_dir(job_id)
@@ -267,6 +275,7 @@ def _persist_job_inputs(
                 "preset_ids": preset_ids,
                 "options": asdict(options),
                 "strict_quality": strict_quality,
+                "reservation_job_id": reservation_job_id,
             }
         ),
         encoding="utf-8",
@@ -351,6 +360,7 @@ async def submit_batch_job(
         preset_ids=[preset.id for preset in presets],
         options=options,
         strict_quality=strict_quality,
+        reservation_job_id=reservation.job_id,
     )
 
     metadata = q.initial_metadata(

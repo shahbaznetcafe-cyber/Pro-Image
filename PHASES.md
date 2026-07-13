@@ -280,6 +280,11 @@ Completed in this phase:
   taake spoofed uploads reject hon.
 - Frontend cleanup: shared `lib/download` aur `lib/batch-jobs` clients, taake
   batch-generator aur seller-studio ka duplicate fetch/download logic ek jagah ho.
+- Batch UI image cap 30 se 100 (real limit plan enforce karta hai).
+- Batch quota refund: secret-gated `seller_release_usage` RPC + `release_usage()`
+  wiring, taake strict-quality block (jo koi deliverable nahi deta) user ka quota
+  consume na kare. Client-callable nahi (server secret se gated). Operator ko naya
+  schema run karna aur `SELLER_RELEASE_SECRET` set karna zaroori hai.
 
 New endpoints:
 

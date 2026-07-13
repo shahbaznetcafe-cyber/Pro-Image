@@ -21,6 +21,7 @@ from app.image_tools.packager import (
 from app.image_tools.presets import get_presets
 from app.image_tools.processor import ProcessingOptions
 from app.integrations import queue as q
+from app.integrations.saas import release_usage
 
 _PROGRESS_POLL_SECONDS = 1.0
 
@@ -80,6 +81,11 @@ async def process_batch_job(ctx: dict[str, Any], job_id: str) -> str:
 
         report = await build_task
     except StrictQualityBlocked as blocked:
+        # No deliverable was produced; refund the reserved usage (best-effort,
+        # authorised by the server release secret).
+        reservation_job_id = spec.get("reservation_job_id")
+        if reservation_job_id:
+            await release_usage(reservation_job_id)
         await q.update_metadata(
             redis,
             job_id,
